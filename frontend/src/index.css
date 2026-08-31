@@ -1,0 +1,332 @@
+/* ==========================================================================
+   GeoWatch Earth - Human-Crafted Remote Sensing & GIS Design System
+   Constraint Check: ZERO Blue Colors | Full Light & Dark Theme Support
+   ========================================================================== */
+
+:root {
+  /* Common Palette Tokens */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   DARK THEME (Warm Obsidian, Mineral Basalt, Emerald & Amber)
+   Default for GIS satellite command centers
+   ========================================================================== */
+[data-theme="dark"] {
+  --bg-canvas: #0e1115;
+  --bg-surface: #151920;
+  --bg-card: #1c212a;
+  --bg-elevated: #242b36;
+  --bg-hover: #2d3644;
+  --bg-active: #374253;
+
+  --border-subtle: #2a323d;
+  --border-strong: #3b4655;
+  --border-focus: #10b981;
+
+  --text-primary: #f4f5f7;
+  --text-secondary: #a3acb9;
+  --text-muted: #6f7887;
+  --text-inverse: #0e1115;
+
+  /* Natural Earth Observation Semantic Accents */
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --emerald-glow: rgba(16, 185, 129, 0.2);
+  --emerald-bg: rgba(16, 185, 129, 0.12);
+
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-glow: rgba(245, 158, 11, 0.2);
+  --amber-bg: rgba(245, 158, 11, 0.12);
+
+  --copper-500: #f97316;
+  --copper-600: #ea580c;
+  --copper-bg: rgba(249, 115, 22, 0.12);
+
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --teal-bg: rgba(20, 184, 166, 0.12);
+
+  --crimson-500: #ef4444;
+  --crimson-bg: rgba(239, 68, 68, 0.12);
+
+  --map-tile-filter: brightness(0.88) contrast(1.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   LIGHT THEME (Warm Ivory, Sandstone, Pine & Burnt Terracotta)
+   ========================================================================== */
+[data-theme="light"] {
+  --bg-canvas: #f8f6f0;
+  --bg-surface: #ffffff;
+  --bg-card: #f2ede4;
+  --bg-elevated: #e8e2d5;
+  --bg-hover: #ded6c6;
+  --bg-active: #d2c8b4;
+
+  --border-subtle: #ddd6c7;
+  --border-strong: #c8bfad;
+  --border-focus: #059669;
+
+  --text-primary: #181c20;
+  --text-secondary: #4a5460;
+  --text-muted: #798492;
+  --text-inverse: #ffffff;
+
+  --emerald-500: #059669;
+  --emerald-600: #047857;
+  --emerald-glow: rgba(5, 150, 105, 0.2);
+  --emerald-bg: rgba(5, 150, 105, 0.12);
+
+  --amber-500: #d97706;
+  --amber-600: #b45309;
+  --amber-glow: rgba(217, 119, 6, 0.2);
+  --amber-bg: rgba(217, 119, 6, 0.12);
+
+  --copper-500: #ea580c;
+  --copper-600: #c2410c;
+  --copper-bg: rgba(234, 88, 12, 0.12);
+
+  --teal-500: #0d9488;
+  --teal-600: #0f766e;
+  --teal-bg: rgba(13, 148, 136, 0.12);
+
+  --crimson-500: #dc2626;
+  --crimson-bg: rgba(220, 38, 38, 0.12);
+
+  --map-tile-filter: brightness(1) contrast(1);
+  --shadow-sm: 0 1px 2px rgba(40, 30, 20, 0.05);
+  --shadow-md: 0 4px 12px rgba(40, 30, 20, 0.08);
+  --shadow-lg: 0 12px 24px -4px rgba(40, 30, 20, 0.12);
+}
+
+/* ==========================================================================
+   GLOBAL RESET & TYPOGRAPHY
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Monospace Utilities for Telemetry */
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* ==========================================================================
+   INTERACTIVE BUTTONS & CONTROLS
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--emerald-600);
+  color: #ffffff;
+  border-color: var(--emerald-500);
+  box-shadow: 0 2px 6px var(--emerald-glow);
+}
+.btn-primary:hover {
+  background: var(--emerald-500);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+.btn-secondary:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.btn-amber {
+  background: var(--amber-600);
+  color: #ffffff;
+  border-color: var(--amber-500);
+  box-shadow: 0 2px 6px var(--amber-glow);
+}
+.btn-amber:hover {
+  background: var(--amber-500);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
+/* Status Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+}
+
+.badge-emerald {
+  background: var(--emerald-bg);
+  color: var(--emerald-500);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-amber {
+  background: var(--amber-bg);
+  color: var(--amber-500);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-copper {
+  background: var(--copper-bg);
+  color: var(--copper-500);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+.badge-teal {
+  background: var(--teal-bg);
+  color: var(--teal-500);
+  border: 1px solid rgba(20, 184, 166, 0.25);
+}
+
+.badge-neutral {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Card Surface */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast);
+}
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+/* Leaflet Container Styling */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-canvas) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+.leaflet-control-zoom a:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: fadeIn 150ms ease-out;
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  max-width: 680px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
