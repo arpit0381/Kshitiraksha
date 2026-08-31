@@ -517,7 +517,7 @@ sequenceDiagram
 
 ## 👥 Contributors & Acknowledgements
 
-* **Arpit & Team Kshitiraksha** — *Core Engineering, GIS Modeling, & Full-Stack Architecture*
+* **Samriddhi Bansal, Arpit Bajpai, Aviral Mishra, Lavanya Sachan and Manikant Awasthi** — *Core Engineering, GIS Modeling, & Full-Stack Architecture*
 * **Indian Space Research Organisation (ISRO)** & **Bhuvan** for Earth Observation data architectures and problem definitions.
 * **Copernicus Sentinel-2** open access program for high-cadence 10m multi-spectral imagery.
 * **Algorand Foundation & AlgoKit** for frictionless, sub-second micropayment primitives.
