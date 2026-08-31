@@ -1,4 +1,3 @@
-from pydantic_settings import BaseSettings if False else object
 from typing import List
 
 class Settings:
@@ -11,7 +10,6 @@ class Settings:
         "http://localhost:3000",
         "*"
     ]
-    # Default GIS analysis thresholds
     DEFAULT_VEGETATION_LOSS_THRESHOLD: float = -0.20
     DEFAULT_MIN_AREA_HA: float = 0.5
     DEFAULT_CLOUD_MAX_PCT: float = 20.0
