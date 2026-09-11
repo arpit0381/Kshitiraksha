@@ -24,7 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.auth import router as auth_router
+
 # Mount Modular Routers
+app.include_router(auth_router, prefix="/api")
 app.include_router(aois_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(events_router, prefix="/api")

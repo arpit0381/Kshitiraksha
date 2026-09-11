@@ -1,14 +1,19 @@
-from fastapi import APIRouter, HTTPException
+import uuid
+from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 import numpy as np
+from sqlalchemy.orm import Session
+
+from app.api import deps
 from app.schemas.models import (
     AnalysisRequest,
     ChangeEventResponse,
     ChangeCategory,
     ReviewStatus
 )
-from app.api.aois import AOI_STORE
-from app.api.events import EVENT_STORE
+from app.models.aoi import AOI as AOIModel
+from app.models.event import ChangeEvent as EventModel
+from app.models.user import User
 from app.services.satellite_provider import Sentinel2L2AProvider
 from app.services.change_engine import ChangeDetectionEngine
 from app.services.confidence_engine import ConfidenceEngine
@@ -16,10 +21,14 @@ from app.services.confidence_engine import ConfidenceEngine
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 provider = Sentinel2L2AProvider()
 
-@router.post("/run")
-def run_analysis(req: AnalysisRequest):
+@router.post("/run", response_model=ChangeEventResponse)
+def run_analysis(
+    req: AnalysisRequest, 
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
     # 1. Find AOI
-    aoi = next((a for a in AOI_STORE if a.id == req.aoi_id), None)
+    aoi = db.query(AOIModel).filter(AOIModel.id == req.aoi_id, AOIModel.owner_id == current_user.id).first()
     if not aoi:
         raise HTTPException(status_code=404, detail="AOI not found")
 
@@ -94,24 +103,27 @@ def run_analysis(req: AnalysisRequest):
     )
 
     # 11. Create & store ChangeEvent
-    new_event_id = f"evt-scan-{int(datetime.now().timestamp())}"
-    new_event = ChangeEventResponse(
+    new_event_id = f"evt-scan-{int(datetime.now().timestamp())}-{str(uuid.uuid4())[:8]}"
+    
+    new_event = EventModel(
         id=new_event_id,
         aoi_id=aoi.id,
         aoi_name=aoi.name,
         analysis_run_id=f"run-{int(datetime.now().timestamp())}",
-        category=ChangeCategory.VEGETATION_LOSS,
+        category=ChangeCategory.VEGETATION_LOSS.value,
         title="Canopy Clearance & Land Disturbance",
         description=f"Negative ΔNDVI anomaly ({req.vegetation_loss_threshold}) detected across {affected_ha} ha between {req.baseline_date} and {req.recent_date}.",
         baseline_date=req.baseline_date,
         recent_date=req.recent_date,
         affected_area_hectares=affected_ha,
         average_delta_index=round(avg_delta, 3),
-        confidence=confidence,
+        confidence=confidence.model_dump(),
         geojson_geometry=geojson_poly,
-        review_status=ReviewStatus.PENDING,
-        created_at=datetime.now()
+        review_status=ReviewStatus.PENDING.value
     )
 
-    EVENT_STORE.insert(0, new_event)
-    return {"status": "COMPLETED", "event": new_event}
+    db.add(new_event)
+    db.commit()
+    db.refresh(new_event)
+    
+    return new_event
