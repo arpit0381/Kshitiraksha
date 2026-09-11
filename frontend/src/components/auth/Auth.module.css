@@ -1,0 +1,217 @@
+.container {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0A0E14;
+  color: #E7ECF2;
+  font-family: 'Space Grotesk', sans-serif;
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+}
+
+/* Ambient Glow behind auth card */
+.ambientGlow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(95, 167, 119, 0.1) 0%, rgba(10, 14, 20, 0) 60%);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(60px);
+}
+
+/* Faint lat/long grid */
+.gridBackground {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(to right, rgba(35, 46, 60, 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(35, 46, 60, 0.5) 1px, transparent 1px);
+  background-size: 80px 80px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.gridMask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, transparent 30%, #0A0E14 80%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.authCard {
+  position: relative;
+  z-index: 10;
+  background-color: rgba(16, 22, 31, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: clamp(32px, 5vw, 48px);
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.brandHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: clamp(32px, 5vw, 40px);
+}
+
+.logoIcon {
+  color: #5FA777;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(95, 167, 119, 0.15) 0%, rgba(95, 167, 119, 0.02) 100%);
+  border: 1px solid rgba(95, 167, 119, 0.2);
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 12px;
+}
+
+.title {
+  font-size: clamp(24px, 3.5vw, 28px);
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.5px;
+  color: #E7ECF2;
+}
+
+.subtitle {
+  color: #8B9AAC;
+  font-size: 15px;
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #8B9AAC;
+  padding-left: 4px;
+}
+
+.input {
+  background-color: rgba(10, 14, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  color: #E7ECF2;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.input:focus {
+  outline: none;
+  border-color: #5FA777;
+  background-color: rgba(10, 14, 20, 0.8);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 0 0 4px rgba(95, 167, 119, 0.15);
+}
+
+.input::placeholder {
+  color: #4b5563;
+}
+
+.submitButton {
+  background-color: #5FA777;
+  color: #0A0E14;
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.submitButton:hover {
+  background-color: #6bbe84;
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 8px 24px rgba(95, 167, 119, 0.3);
+}
+
+.submitButton:active {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.footerText {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 14px;
+  color: #8B9AAC;
+}
+
+.link {
+  color: #5FA777;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.link:hover {
+  color: #E7ECF2;
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0;
+  }
+  
+  .authCard {
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    min-height: 100vh;
+    justify-content: center;
+    background-color: rgba(10, 14, 20, 0.95);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+  }
+}
