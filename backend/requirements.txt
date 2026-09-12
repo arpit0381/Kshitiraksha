@@ -18,3 +18,4 @@ planetary-computer>=1.0.0
 xarray>=2023.1.0
 rioxarray>=0.15.0
 odc-stac>=0.3.6
+py-algorand-sdk>=2.4.0

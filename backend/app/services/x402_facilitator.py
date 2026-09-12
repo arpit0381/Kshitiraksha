@@ -65,9 +65,52 @@ class X402PaymentFacilitator:
             if not hmac.compare_digest(expected_sig, signature):
                 return {"valid": False, "error": "Invalid challenge signature"}
 
-            # Simulated on-chain verification
-            # Validates Algorand transaction hash structure (52 chars base32 or valid hex)
-            is_valid_tx = len(transaction_id) >= 16
+            # Real on-chain verification using Algorand Indexer
+            from algosdk.v2client import indexer  # type: ignore
+            indexer_client = indexer.IndexerClient("", "https://testnet-idx.algonode.cloud")
+            
+            is_valid_tx = False
+            tx_info = None
+            
+            # Simple retry logic for recent transactions not yet indexed
+            for _ in range(3):
+                try:
+                    response = indexer_client.search_transactions(txid=transaction_id)
+                    if response.get("transactions") and len(response["transactions"]) > 0:
+                        tx_info = response["transactions"][0]
+                        break
+                except Exception:
+                    pass
+                time.sleep(2)
+                
+            if not tx_info:
+                return {"valid": False, "error": "Transaction not found on Algorand TestNet"}
+            
+            if tx_info.get("tx-type") != "pay":
+                return {"valid": False, "error": "Transaction is not a payment"}
+                
+            pay_txn = tx_info.get("payment-transaction", {})
+            receiver = pay_txn.get("receiver")
+            
+            if receiver != cls.TREASURY_ADDRESS:
+                return {"valid": False, "error": f"Invalid receiver. Expected {cls.TREASURY_ADDRESS}"}
+                
+            # Extract expected amount from challenge token payload
+            # Format: resource_path:amount_algo:network:nonce:timestamp
+            token_parts = raw_msg.split(":")
+            if len(token_parts) >= 2:
+                try:
+                    expected_amount_algo = float(token_parts[1])
+                    expected_microalgo = int(expected_amount_algo * 1_000_000)
+                    actual_microalgo = pay_txn.get("amount", 0)
+                    
+                    if actual_microalgo < expected_microalgo:
+                        return {"valid": False, "error": f"Insufficient amount. Expected {expected_amount_algo} ALGO"}
+                except ValueError:
+                    pass
+            
+            is_valid_tx = True
+            sender_wallet = tx_info.get("sender") or sender_wallet
 
             return {
                 "valid": is_valid_tx,
@@ -75,7 +118,7 @@ class X402PaymentFacilitator:
                 "sender_wallet": sender_wallet or "ANONYMOUS_WALLET_ALGO",
                 "settled_at": int(time.time()),
                 "status": "SETTLED" if is_valid_tx else "FAILED",
-                "message": "Payment settled on Algorand Testnet. Access granted." if is_valid_tx else "Transaction rejected"
+                "message": "Payment verified on Algorand Testnet. Access granted." if is_valid_tx else "Transaction rejected"
             }
         except Exception as e:
             return {"valid": False, "error": str(e)}
