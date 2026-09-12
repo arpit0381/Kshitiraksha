@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 from sqlalchemy.orm import Session
 
@@ -13,10 +13,13 @@ from app.schemas.models import (
 )
 from app.models.aoi import AOI as AOIModel
 from app.models.event import ChangeEvent as EventModel
+from app.models.alert import AlertNotification
 from app.models.user import User
 from app.services.satellite_provider import Sentinel2L2AProvider
 from app.services.change_engine import ChangeDetectionEngine
 from app.services.confidence_engine import ConfidenceEngine
+
+from typing import Optional
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 provider = Sentinel2L2AProvider()
@@ -25,10 +28,10 @@ provider = Sentinel2L2AProvider()
 def run_analysis(
     req: AnalysisRequest, 
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: Optional[User] = Depends(deps.get_current_user_optional)
 ):
     # 1. Find AOI
-    aoi = db.query(AOIModel).filter(AOIModel.id == req.aoi_id, AOIModel.owner_id == current_user.id).first()
+    aoi = db.query(AOIModel).filter(AOIModel.id == req.aoi_id).first()
     if not aoi:
         raise HTTPException(status_code=404, detail="AOI not found")
 
@@ -122,7 +125,29 @@ def run_analysis(
         review_status=ReviewStatus.PENDING.value
     )
 
+    # 12. Update AOI monitored status and active alerts counter
+    setattr(aoi, "last_monitored_at", datetime.now(timezone.utc))
+    current_alerts = int(getattr(aoi, "active_alerts_count", 0) or 0)
+    setattr(aoi, "active_alerts_count", current_alerts + 1)
+
+    # 13. Auto-generate AlertNotification for real-time dispatch
+    new_alert_id = f"alt-{int(datetime.now().timestamp())}-{str(uuid.uuid4())[:5]}"
+    new_alert = AlertNotification(
+        id=new_alert_id,
+        event_id=new_event_id,
+        event_title=new_event.title,
+        aoi_name=aoi.name,
+        category=new_event.category,
+        severity="CRITICAL" if affected_ha >= 25.0 else "HIGH",
+        channel="DASHBOARD",
+        recipient="Automated Alert Dispatcher",
+        status="DELIVERED",
+        affected_area_hectares=affected_ha,
+        confidence_pct=round(confidence.overall_detection_confidence * 100, 1)
+    )
+
     db.add(new_event)
+    db.add(new_alert)
     db.commit()
     db.refresh(new_event)
     

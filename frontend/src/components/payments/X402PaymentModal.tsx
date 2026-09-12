@@ -1,21 +1,45 @@
-import React, { useState } from 'react';
-import { X402Challenge } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { X402Challenge, X402PaymentRecord } from '../../types';
 import { ApiService } from '../../services/api';
-import { Zap, CheckCircle2, Shield, ArrowRight, Wallet, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  Zap,
+  CheckCircle2,
+  Shield,
+  ArrowRight,
+  Wallet,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Clock,
+  Layers,
+  FileText,
+  Lock,
+  Unlock
+} from 'lucide-react';
 
 interface X402PaymentModalProps {
   onClose?: () => void;
 }
 
 export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
-  const [selectedService, setSelectedService] = useState<'PRIORITY_SCAN' | 'GEOTIFF_EXPORT' | 'HIGH_FREQ'>('PRIORITY_SCAN');
+  const [selectedService, setSelectedService] = useState<'PRIORITY_SCAN' | 'GEOTIFF_EXPORT' | 'HIGH_FREQ' | 'PDF_DOSSIER'>('PRIORITY_SCAN');
   const [challenge, setChallenge] = useState<X402Challenge | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
+  const [walletConnected, setWalletConnected] = useState<boolean>(true);
+  const [walletType, setWalletType] = useState<string>('Pera Wallet (Testnet)');
   const [walletAddress, setWalletAddress] = useState<string>('ALGO7KSHITIRAKSHATESTNETUSER9823VAULT');
   const [isPaying, setIsPaying] = useState<boolean>(false);
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
   const [txHash, setTxHash] = useState<string>('');
+  const [paymentRecords, setPaymentRecords] = useState<X402PaymentRecord[]>([]);
+
+  useEffect(() => {
+    const fetchRecords = async () => {
+      const recs = await ApiService.getX402Records();
+      setPaymentRecords(recs);
+    };
+    fetchRecords();
+  }, []);
 
   const services = [
     {
@@ -38,6 +62,13 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
       price: 1.00,
       resource: '/api/v1/premium/orbital-watch',
       desc: 'Automated 5-day revisit monitoring trigger with SMS/Webhook dispatch on detection confidence > 85%.'
+    },
+    {
+      id: 'PDF_DOSSIER',
+      title: 'Certified Executive Intelligence Dossier',
+      price: 0.15,
+      resource: '/api/v1/premium/certified-dossier',
+      desc: 'Tamper-proof verifiable PDF intelligence report with on-chain cryptographic audit signature hash.'
     }
   ];
 
@@ -46,8 +77,7 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
   const handleRequestChallenge = async () => {
     setIsLoading(true);
     setPaymentSuccess(false);
-    const chal = await ApiService.getX402Challenge(currentService.resource);
-    chal.amount_algo = currentService.price;
+    const chal = await ApiService.getX402Challenge(currentService.resource, currentService.price);
     setChallenge(chal);
     setIsLoading(false);
   };
@@ -55,21 +85,31 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
   const handleSimulatePayment = async () => {
     if (!challenge) return;
     setIsPaying(true);
-    
-    // Simulate Algorand Testnet block commitment
-    await new Promise(r => setTimeout(r, 1200));
-    const mockTx = `ALGO-TX-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    setTxHash(mockTx);
 
-    const result = await ApiService.verifyX402Payment(challenge.challenge_token, mockTx, walletAddress);
+    // Simulate Algorand Testnet block commitment
+    await new Promise(r => setTimeout(r, 1400));
+    const testnetTxId = `ALGO-TX-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    setTxHash(testnetTxId);
+
+    const result = await ApiService.verifyX402Payment(
+      challenge.challenge_token,
+      testnetTxId,
+      walletAddress,
+      currentService.title,
+      currentService.price
+    );
+
     setIsPaying(false);
     if (result.success) {
       setPaymentSuccess(true);
+      if (result.record) {
+        setPaymentRecords(prev => [result.record!, ...prev]);
+      }
     }
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header Banner */}
       <div className="card" style={{ padding: '24px', position: 'relative', overflow: 'hidden' }}>
         <div
@@ -102,7 +142,7 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
               <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
                 AlgoKit / x402 Micropayment Protocol
               </h1>
-              <span className="badge badge-amber font-mono">Algorand Testnet</span>
+              <span className="badge badge-amber font-mono">Algorand Testnet Facilitator</span>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '850px' }}>
               Decentralized pay-per-request monetization for heavy satellite raster computations.
@@ -112,26 +152,16 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
           {/* Wallet State */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {walletConnected ? (
-              <div className="badge badge-emerald font-mono" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                <Wallet size={14} />
-                <span>{walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}</span>
-              </div>
-            ) : (
-              <button
-                onClick={() => setWalletConnected(true)}
-                className="btn btn-secondary btn-sm"
-              >
-                <Wallet size={14} />
-                <span>Connect Algorand Wallet</span>
-              </button>
-            )}
+            <div className="badge badge-emerald font-mono" style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Wallet size={14} />
+              <span>{walletAddress.slice(0, 10)}...{walletAddress.slice(-6)}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Services Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
         {services.map(s => (
           <div
             key={s.id}
@@ -149,19 +179,19 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
               transition: 'all var(--transition-fast)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {s.title}
               </span>
               <span className="badge badge-amber font-mono" style={{ fontSize: '13px', fontWeight: 700 }}>
                 {s.price} ALGO
               </span>
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px', minHeight: '48px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px', minHeight: '44px' }}>
               {s.desc}
             </p>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              Resource: {s.resource}
+              Endpoint: {s.resource}
             </div>
           </div>
         ))}
@@ -169,13 +199,13 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
       {/* Interactive x402 Execution Box */}
       <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
               Execute {currentService.title}
             </h3>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Target fee: <b className="font-mono" style={{ color: 'var(--amber-500)' }}>{currentService.price} ALGO</b> (~$0.05 USD)
+              Micropayment fee: <b className="font-mono" style={{ color: 'var(--amber-500)' }}>{currentService.price} ALGO</b> (~$0.05 USD)
             </p>
           </div>
 
@@ -184,6 +214,7 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
               onClick={handleRequestChallenge}
               disabled={isLoading}
               className="btn btn-amber"
+              style={{ gap: '6px' }}
             >
               {isLoading ? (
                 <>
@@ -208,48 +239,49 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
         {challenge && (
           <div
             style={{
-              padding: '16px',
+              padding: '18px',
               backgroundColor: 'var(--bg-canvas)',
               border: '1px solid var(--border-strong)',
               borderRadius: 'var(--radius-md)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px'
+              gap: '14px'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="badge badge-amber font-mono">HTTP 402 PAYMENT REQUIRED</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Protocol Challenge Received</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>AlgoKit Facilitator Challenge Issued</span>
               </div>
               <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                 Nonce valid for {challenge.expires_in_seconds}s
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', fontSize: '12px' }} className="font-mono">
-              <div style={{ padding: '8px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>VAULT ADDRESS (RECEIVER)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', fontSize: '12px' }} className="font-mono">
+              <div style={{ padding: '10px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>ESCROW VAULT (RECEIVER)</div>
                 <div style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>{challenge.destination_address}</div>
               </div>
 
-              <div style={{ padding: '8px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>CHALLENGE TOKEN (HMAC)</div>
+              <div style={{ padding: '10px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>CHALLENGE TOKEN (HMAC NONCE)</div>
                 <div style={{ color: 'var(--text-primary)', wordBreak: 'break-all' }}>{challenge.challenge_token.slice(0, 32)}...</div>
               </div>
             </div>
 
             {/* Payment Action */}
             {!paymentSuccess ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '10px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Sign transaction with connected Algorand wallet ({challenge.amount_algo} ALGO)
+                  Authorize transaction from connected wallet ({challenge.amount_algo} ALGO)
                 </span>
 
                 <button
                   onClick={handleSimulatePayment}
                   disabled={isPaying}
                   className="btn btn-primary"
+                  style={{ gap: '6px' }}
                 >
                   {isPaying ? (
                     <>
@@ -259,7 +291,7 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
                   ) : (
                     <>
                       <CheckCircle2 size={15} />
-                      <span>Sign & Settle {challenge.amount_algo} ALGO</span>
+                      <span>Sign & Broadcast {challenge.amount_algo} ALGO</span>
                     </>
                   )}
                 </button>
@@ -290,14 +322,64 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
                   </div>
                 </div>
 
-                <button className="btn btn-primary btn-sm">
-                  <span>Access High-Priority Compute Stream</span>
-                  <ArrowRight size={14} />
-                </button>
+                <div className="badge badge-emerald font-mono" style={{ padding: '6px 12px' }}>
+                  <span>✓ 200 OK • Resource Gated Token Unlocked</span>
+                </div>
               </div>
             )}
           </div>
         )}
+      </div>
+
+      {/* On-Chain Transaction Ledger */}
+      <div className="card" style={{ padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Clock size={16} style={{ color: 'var(--teal-500)' }} />
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              On-Chain x402 Settlement Ledger
+            </h3>
+          </div>
+          <span className="badge badge-neutral font-mono">{paymentRecords.length} Transactions</span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {paymentRecords.map(rec => (
+            <div
+              key={rec.tx_id}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
+                fontSize: '12px'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {rec.service_name}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
+                  Tx: {rec.tx_id} • Block: #{rec.block_number}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span className="badge badge-amber font-mono" style={{ fontWeight: 700 }}>
+                  {rec.amount_algo} ALGO
+                </span>
+                <span className="badge badge-emerald font-mono">
+                  {rec.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

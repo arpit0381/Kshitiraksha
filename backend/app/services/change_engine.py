@@ -99,8 +99,10 @@ class ChangeDetectionEngine:
 
             # Project pixel (x, y) to geographic (lon, lat)
             geo_ring = []
-            for pt in approx:
-                px, py = pt[0]
+            pts = approx.reshape(-1, 2)
+            for pt in pts:
+                px = float(pt[0])
+                py = float(pt[1])
                 lon = min_lon + (px / width) * (max_lon - min_lon)
                 lat = max_lat - (py / height) * (max_lat - min_lat)  # Invert Y for latitude
                 geo_ring.append([round(lon, 6), round(lat, 6)])

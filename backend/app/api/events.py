@@ -12,18 +12,18 @@ router = APIRouter(prefix="/events", tags=["Change Events"])
 def list_events(
     aoi_id: Optional[str] = Query(None), 
     db: Session = Depends(deps.get_db), 
-    current_user: User = Depends(deps.get_current_user)
+    current_user: Optional[User] = Depends(deps.get_current_user_optional)
 ):
     query = db.query(EventModel)
     if aoi_id:
         query = query.filter(EventModel.aoi_id == aoi_id)
-    return query.all()
+    return query.order_by(EventModel.created_at.desc()).all()
 
 @router.get("/{event_id}", response_model=ChangeEventResponse)
 def get_event(
     event_id: str, 
     db: Session = Depends(deps.get_db), 
-    current_user: User = Depends(deps.get_current_user)
+    current_user: Optional[User] = Depends(deps.get_current_user_optional)
 ):
     event = db.query(EventModel).filter(EventModel.id == event_id).first()
     if not event:
@@ -35,7 +35,7 @@ def update_review(
     event_id: str, 
     payload: ReviewUpdateRequest, 
     db: Session = Depends(deps.get_db), 
-    current_user: User = Depends(deps.get_current_user)
+    current_user: Optional[User] = Depends(deps.get_current_user_optional)
 ):
     event = db.query(EventModel).filter(EventModel.id == event_id).first()
     if not event:

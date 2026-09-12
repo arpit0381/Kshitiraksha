@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Globe2, Satellite, Activity, ShieldAlert, ChevronRight } from 'lucide-react';
+import { Globe2, Satellite, Activity, ShieldAlert, ChevronRight, Zap, Layers, CheckCircle2, ArrowRight } from 'lucide-react';
 import styles from './LandingPage.module.css';
 
 export const LandingPage: React.FC = () => {
@@ -15,35 +15,57 @@ export const LandingPage: React.FC = () => {
           KSHITIRAKSHA
         </div>
         <div className={styles.navLinks}>
-          <a href="#features" className={styles.navLink}>Features</a>
-          <a href="#technology" className={styles.navLink}>Technology</a>
+          <a href="#features" className={styles.navLink}>Core Pipeline</a>
+          <a href="#x402" className={styles.navLink}>AlgoKit x402</a>
           <Link to="/login" className={styles.secondaryButton}>Log In</Link>
-          <Link to="/register" className={styles.primaryButton}>Get Started</Link>
+          <Link to="/app" className={styles.primaryButton}>Launch Workspace</Link>
         </div>
       </nav>
 
       <main className={styles.hero}>
         {/* Ambient Glow */}
         <div className={styles.ambientGlow} aria-hidden="true" />
-        
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: '100px', backgroundColor: 'rgba(95, 167, 119, 0.15)', border: '1px solid rgba(95, 167, 119, 0.3)', color: '#5FA777', fontSize: '13px', fontWeight: 600, marginBottom: '20px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#5FA777', boxShadow: '0 0 8px #5FA777' }} />
+          ISRO Sentinel-2 Multi-Temporal Change Engine
+        </div>
+
         <h1 className={styles.title}>
-          The Smart Watchtower for Earth
+          The Smart Watchtower for Planetary Resources
         </h1>
-        
+
         <p className={styles.subtitle}>
-          Automated satellite-based change detection. We monitor forests, water bodies, and urban expansion, turning raw pixels into actionable alerts without human intervention.
+          Automated multi-spectral satellite change detection. We monitor forests, water bodies, and mining encroachment—transforming raw Sentinel-2 L2A observations into explainable alerts and on-chain pay-per-use computations.
         </p>
 
         <div className={styles.ctaGroup}>
-          <Link to="/register" className={styles.heroPrimaryCta}>
-            Start Monitoring <ChevronRight size={20} />
+          <Link to="/app" className={styles.heroPrimaryCta}>
+            Launch Live Demo <ChevronRight size={20} />
           </Link>
-          <Link to="/login" className={styles.heroSecondaryCta}>
-            View Dashboard
+          <Link to="/register" className={styles.heroSecondaryCta}>
+            Request API Access
           </Link>
+        </div>
+
+        {/* Live Hero Telemetry Strip */}
+        <div style={{ display: 'flex', gap: '24px', marginTop: '48px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#8B9AAC' }}>
+            <CheckCircle2 size={16} style={{ color: '#5FA777' }} />
+            <span>10m GSD Optical Resolution</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#8B9AAC' }}>
+            <CheckCircle2 size={16} style={{ color: '#5FA777' }} />
+            <span>OpenCV Connected Morphology</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#5FA777' }}>
+            <Zap size={16} />
+            <span>AlgoKit x402 Micropayments</span>
+          </div>
         </div>
       </main>
 
+      {/* Feature Grid */}
       <div className={styles.featuresPreview} id="features">
         <div className={styles.featureCard}>
           <div className={styles.featureIcon}>
@@ -51,7 +73,7 @@ export const LandingPage: React.FC = () => {
           </div>
           <h3 className={styles.featureTitle}>Automated Pipeline</h3>
           <p className={styles.featureDesc}>
-            Select your AOI and let our engine automatically fetch, clean, and analyze Sentinel-2 imagery on a schedule.
+            Draw or upload any AOI polygon. Our pipeline automatically fetches clean cloud-masked Sentinel-2 MSI rasters and runs multi-temporal index differencing.
           </p>
         </div>
 
@@ -59,19 +81,19 @@ export const LandingPage: React.FC = () => {
           <div className={styles.featureIcon}>
             <Activity size={24} />
           </div>
-          <h3 className={styles.featureTitle}>Smart Detection</h3>
+          <h3 className={styles.featureTitle}>Explainable Confidence</h3>
           <p className={styles.featureDesc}>
-            Algorithms trained to ignore clouds and seasonal noise, isolating only statistically significant changes.
+            4-factor composite AI evaluation: Spectral magnitude, spatial clustering contiguity, cloud probability scoring, and temporal persistence.
           </p>
         </div>
 
-        <div className={styles.featureCard}>
-          <div className={styles.featureIcon}>
-            <ShieldAlert size={24} />
+        <div className={styles.featureCard} id="x402">
+          <div className={styles.featureIcon} style={{ color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.3)', background: 'rgba(245, 158, 11, 0.1)' }}>
+            <Zap size={24} />
           </div>
-          <h3 className={styles.featureTitle}>Actionable Alerts</h3>
+          <h3 className={styles.featureTitle}>AlgoKit x402 Protocol</h3>
           <p className={styles.featureDesc}>
-            Receive categorized alerts for deforestation, water shrinkage, or unauthorized construction directly to your dashboard.
+            Monetized high-priority compute queues and 16-bit GeoTIFF bundles via Algorand Testnet HTTP 402 pay-per-request micropayments.
           </p>
         </div>
       </div>

@@ -1,6 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
-import { Globe, Layers, Eye, ShieldCheck, Zap, Radio } from 'lucide-react';
+import { ApiService } from '../../services/api';
+import {
+  Globe,
+  Layers,
+  Eye,
+  ShieldCheck,
+  Zap,
+  Radio,
+  Bell,
+  FolderKanban,
+  User,
+  LogOut,
+  Activity
+} from 'lucide-react';
 
 interface HeaderProps {
   currentTab: string;
@@ -9,6 +23,26 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pendingAlertsCount }) => {
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<{ email: string } | null>(null);
+  const [isBackendOnline, setIsBackendOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const health = await ApiService.checkHealth();
+      setIsBackendOnline(health !== null);
+      const me = await ApiService.getMe();
+      if (me) setCurrentUser(me);
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = () => {
+    ApiService.logout();
+    navigate('/login');
+  };
   return (
     <header
       style={{
@@ -21,11 +55,13 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        boxShadow: 'var(--shadow-sm)'
+        boxShadow: 'var(--shadow-sm)',
+        flexWrap: 'wrap',
+        gap: '12px'
       }}
     >
       {/* Brand & Subtitle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <div
           style={{
             display: 'flex',
@@ -44,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              GeoWatch Earth
+              Kshitiraksha
             </span>
             <span
               style={{
@@ -68,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
       </div>
 
       {/* Navigation Tabs */}
-      <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <nav style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
         <button
           onClick={() => onTabChange('dashboard')}
           className={`btn btn-sm ${currentTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
@@ -76,6 +112,15 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
         >
           <Radio size={14} />
           <span>Dashboard</span>
+        </button>
+
+        <button
+          onClick={() => onTabChange('projects')}
+          className={`btn btn-sm ${currentTab === 'projects' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ gap: '6px' }}
+        >
+          <FolderKanban size={14} />
+          <span>Projects</span>
         </button>
 
         <button
@@ -93,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
           style={{ gap: '6px' }}
         >
           <Eye size={14} />
-          <span>Swipe Studio</span>
+          <span>Comparison</span>
         </button>
 
         <button
@@ -121,6 +166,15 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
         </button>
 
         <button
+          onClick={() => onTabChange('alerts')}
+          className={`btn btn-sm ${currentTab === 'alerts' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ gap: '6px' }}
+        >
+          <Bell size={14} />
+          <span>Alerts</span>
+        </button>
+
+        <button
           onClick={() => onTabChange('x402')}
           className={`btn btn-sm ${currentTab === 'x402' ? 'btn-amber' : 'btn-secondary'}`}
           style={{ gap: '6px' }}
@@ -130,23 +184,59 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
         </button>
       </nav>
 
-      {/* Telemetry Status & Theme */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* Telemetry Status & User Profile */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Live Backend Connection Indicator */}
         <div
-          className="badge badge-emerald"
-          style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+          className={`badge ${isBackendOnline ? 'badge-emerald' : isBackendOnline === false ? 'badge-copper' : 'badge-neutral'}`}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px' }}
+          title={isBackendOnline ? 'FastAPI & Planetary Computer Connected' : 'Connecting to live Backend...'}
         >
           <span
             style={{
-              width: '6px',
-              height: '6px',
+              width: '7px',
+              height: '7px',
               borderRadius: '50%',
-              backgroundColor: 'var(--emerald-500)',
-              boxShadow: '0 0 6px var(--emerald-500)'
+              backgroundColor: isBackendOnline ? 'var(--emerald-500)' : isBackendOnline === false ? '#ef4444' : '#f59e0b',
+              boxShadow: isBackendOnline ? '0 0 6px var(--emerald-500)' : 'none'
             }}
           />
-          Sentinel-2 L2A (10m)
+          <span>{isBackendOnline ? 'Backend Live' : isBackendOnline === false ? 'API Offline' : 'Syncing...'}</span>
         </div>
+
+        {/* User Account / Role Badge */}
+        {currentUser && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              fontSize: '11px',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <User size={13} style={{ color: 'var(--emerald-500)' }} />
+            <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentUser.email.split('@')[0]}
+            </span>
+          </div>
+        )}
+
+        {/* Logout Button */}
+        {currentUser && (
+          <button
+            onClick={handleLogout}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '6px 8px' }}
+            title="Sign out of session"
+          >
+            <LogOut size={13} />
+          </button>
+        )}
 
         <ThemeToggle />
       </div>

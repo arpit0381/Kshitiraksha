@@ -1,21 +1,41 @@
 import React, { useState } from 'react';
 import { ChangeEvent, ReviewStatus } from '../../types';
-import { ShieldCheck, AlertTriangle, CheckCircle, XCircle, Download, FileText, Calendar, MapPin, Share2 } from 'lucide-react';
+import { ReportGeneratorModal } from '../reports/ReportGeneratorModal';
+import {
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Download,
+  FileText,
+  Calendar,
+  MapPin,
+  Share2,
+  Printer,
+  Send,
+  Eye,
+  ChevronDown
+} from 'lucide-react';
 
 interface EventReviewStudioProps {
   event: ChangeEvent;
+  events?: ChangeEvent[];
+  onSelectEvent?: (event: ChangeEvent) => void;
   onUpdateStatus: (eventId: string, status: ReviewStatus, notes?: string) => Promise<void>;
   onOpenSwipe: (event: ChangeEvent) => void;
 }
 
 export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
   event,
+  events,
+  onSelectEvent,
   onUpdateStatus,
   onOpenSwipe
 }) => {
   const [notes, setNotes] = useState<string>(event.review_notes || '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
 
   const handleStatusChange = async (status: ReviewStatus) => {
     setIsSaving(true);
@@ -62,16 +82,55 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const quickNotes = [
+    'Confirmed with Divisional Forest patrol report.',
+    'Monsoon cloud-shadow artifact flagged for dismissal.',
+    'Suspected illegal sand / gravel mining expansion.',
+    'Urgent ground inspection recommended.'
+  ];
+
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Event Header Banner */}
       <div className="card" style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+            {/* Event Selector Dropdown if multiple exist */}
+            {events && events.length > 0 && onSelectEvent ? (
+              <select
+                value={event.id}
+                onChange={e => {
+                  const found = events.find(ev => ev.id === e.target.value);
+                  if (found) {
+                    onSelectEvent(found);
+                    setNotes(found.review_notes || '');
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--radius-md)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                {events.map(ev => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.title} ({ev.aoi_name})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {event.title}
+              </h1>
+            )}
+
             <span className="badge badge-amber">{event.category.replace('_', ' ')}</span>
-            <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {event.title}
-            </h1>
             <span
               className={`badge ${
                 event.review_status === 'VERIFIED'
@@ -89,20 +148,26 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
           </p>
         </div>
 
-        {/* Export & Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={() => onOpenSwipe(event)} className="btn btn-secondary">
-            <span>Open in Swipe Studio</span>
+        {/* Export & Studio Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={() => onOpenSwipe(event)} className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
+            <Eye size={14} />
+            <span>Swipe Studio</span>
           </button>
 
-          <button onClick={handleExportGeoJson} className="btn btn-primary" style={{ gap: '6px' }}>
-            <Download size={15} />
+          <button onClick={() => setShowReportModal(true)} className="btn btn-amber btn-sm" style={{ gap: '6px' }}>
+            <FileText size={14} />
+            <span>Generate Dossier PDF</span>
+          </button>
+
+          <button onClick={handleExportGeoJson} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
+            <Download size={14} />
             <span>Export GeoJSON</span>
           </button>
         </div>
       </div>
 
-      {/* 3-Panel Visual Evidence Display (Baseline <-> Recent <-> Change Mask) */}
+      {/* 3-Panel Visual Evidence Display */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
         {/* Panel 1: Baseline */}
         <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -112,7 +177,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
               <span>1. Baseline Observation</span>
             </div>
             <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Sentinel-2B MSI
+              Sentinel-2B MSI L2A
             </span>
           </div>
 
@@ -145,7 +210,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
                 fontFamily: 'var(--font-mono)'
               }}
             >
-              Date: {event.baseline_date} • Cloud: 1.8%
+              Date: {event.baseline_date} • Cloud: 1.4%
             </div>
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -161,7 +226,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
               <span>2. Recent Observation</span>
             </div>
             <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Sentinel-2A MSI
+              Sentinel-2A MSI L2A
             </span>
           </div>
 
@@ -194,7 +259,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
                 fontFamily: 'var(--font-mono)'
               }}
             >
-              Date: {event.recent_date} • Cloud: 3.2%
+              Date: {event.recent_date} • Cloud: 2.1%
             </div>
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -258,13 +323,13 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
         </div>
       </div>
 
-      {/* Explainable Confidence Radar & Audit Section */}
+      {/* Confidence Breakdown & Auditor Controls */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
-        {/* Left: 4-Factor Confidence Breakdown */}
+        {/* Left: Explainable Confidence */}
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Explainable Confidence Engine
+              Explainable AI Confidence Engine
             </h3>
             <span className="badge badge-emerald font-mono">
               Overall: {Math.round(event.confidence.overall_detection_confidence * 100)}%
@@ -272,7 +337,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Magnitude Score */}
+            {/* Magnitude */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Spectral Magnitude Shift</span>
@@ -311,7 +376,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
               </div>
             </div>
 
-            {/* Temporal Persistence */}
+            {/* Persistence */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Temporal Persistence Score</span>
@@ -337,7 +402,6 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
               onClick={() => handleStatusChange('VERIFIED')}
@@ -370,7 +434,24 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             </button>
           </div>
 
-          {/* Review Notes Input */}
+          {/* Quick Note Tags */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Quick Comment Presets:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              {quickNotes.map((q, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setNotes(q)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '10px', padding: '2px 6px' }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Notes */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Auditor Comments & Inspection Notes:
@@ -412,6 +493,14 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Executive Report Modal */}
+      {showReportModal && (
+        <ReportGeneratorModal
+          event={event}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 };

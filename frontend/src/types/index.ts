@@ -11,6 +11,8 @@ export type ReviewStatus = 'PENDING' | 'VERIFIED' | 'FALSE_POSITIVE' | 'NEEDS_RE
 
 export type SpectralBandMode = 'TRUE_COLOR' | 'FALSE_COLOR_IR' | 'NDVI_DELTA' | 'NDWI';
 
+export type ComparisonMode = 'SWIPE' | 'SIDE_BY_SIDE' | 'DIFFERENCE_MASK';
+
 export interface ConfidenceBreakdown {
   magnitude_score: number;
   spatial_consistency_score: number;
@@ -22,6 +24,7 @@ export interface ConfidenceBreakdown {
 
 export interface AOI {
   id: string;
+  project_id?: string;
   name: string;
   description?: string;
   preset_key?: string;
@@ -35,18 +38,31 @@ export interface AOI {
   created_at: string;
   last_monitored_at?: string;
   active_alerts_count: number;
+  category?: ChangeCategory;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  department: string;
+  created_at: string;
+  aoi_ids: string[];
+  monitoring_frequency: 'DAILY' | 'ORBITAL_5DAY' | 'WEEKLY' | 'MONTHLY';
+  status: 'ACTIVE' | 'PAUSED';
 }
 
 export interface SatelliteObservation {
   id: string;
   aoi_id: string;
-  satellite: string;
+  satellite: 'Sentinel-2A' | 'Sentinel-2B' | 'Landsat-9' | 'EOS-04';
   date: string;
   cloud_cover_pct: number;
   gsd_m: number;
   sun_elevation_deg: number;
   tile_id: string;
   preview_url?: string;
+  quality_grade: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR_CLOUD_COVER';
 }
 
 export interface ChangeEvent {
@@ -69,9 +85,34 @@ export interface ChangeEvent {
   review_status: ReviewStatus;
   review_notes?: string;
   created_at: string;
-  // Realistic imagery simulation assets
   baseline_image_url?: string;
   recent_image_url?: string;
+}
+
+export interface AlertNotification {
+  id: string;
+  event_id: string;
+  event_title: string;
+  aoi_name: string;
+  category: ChangeCategory;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'INFO';
+  sent_at: string;
+  channel: 'DASHBOARD' | 'EMAIL' | 'WEBHOOK' | 'SMS';
+  recipient: string;
+  status: 'DELIVERED' | 'DISPATCHED' | 'FAILED';
+  affected_area_hectares: number;
+  confidence_pct: number;
+}
+
+export interface AlertRule {
+  id: string;
+  aoi_id: string;
+  category: ChangeCategory;
+  min_confidence: number;
+  min_area_hectares: number;
+  delta_threshold: number;
+  channels: ('DASHBOARD' | 'EMAIL' | 'WEBHOOK' | 'SMS')[];
+  enabled: boolean;
 }
 
 export interface AnalysisRunParams {
@@ -95,4 +136,15 @@ export interface X402Challenge {
   challenge_token: string;
   expires_in_seconds: number;
   instructions: string;
+}
+
+export interface X402PaymentRecord {
+  tx_id: string;
+  resource: string;
+  service_name: string;
+  amount_algo: number;
+  timestamp: string;
+  sender: string;
+  status: 'CONFIRMED' | 'PENDING' | 'FAILED';
+  block_number: number;
 }

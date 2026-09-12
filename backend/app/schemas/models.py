@@ -29,6 +29,10 @@ class AOIBase(BaseModel):
     description: Optional[str] = None
     geometry: Dict[str, Any] = Field(..., description="GeoJSON Geometry (Polygon/MultiPolygon)")
     preset_key: Optional[str] = None
+    project_id: Optional[str] = None
+    center: Optional[List[float]] = None
+    zoom: Optional[int] = 13
+    category: Optional[str] = "VEGETATION_LOSS"
 
 class AOICreate(AOIBase):
     pass
@@ -39,6 +43,62 @@ class AOIResponse(AOIBase):
     created_at: datetime
     last_monitored_at: Optional[datetime] = None
     active_alerts_count: int = 0
+
+class ProjectBase(BaseModel):
+    name: str
+    description: str
+    department: str
+    aoi_ids: List[str] = []
+    monitoring_frequency: str = "ORBITAL_5DAY"
+    status: str = "ACTIVE"
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectResponse(ProjectBase):
+    id: str
+    created_at: datetime
+
+class AlertNotificationResponse(BaseModel):
+    id: str
+    event_id: str
+    event_title: str
+    aoi_name: str
+    category: str
+    severity: str
+    sent_at: datetime
+    channel: str
+    recipient: str
+    status: str
+    affected_area_hectares: float
+    confidence_pct: float
+
+class AlertRuleBase(BaseModel):
+    aoi_id: str
+    category: str = "VEGETATION_LOSS"
+    min_confidence: float = 0.85
+    min_area_hectares: float = 2.0
+    delta_threshold: float = -0.25
+    channels: List[str] = ["DASHBOARD", "EMAIL"]
+    enabled: bool = True
+
+class AlertRuleCreate(AlertRuleBase):
+    id: Optional[str] = None
+
+class AlertRuleResponse(AlertRuleBase):
+    id: str
+    created_at: datetime
+
+class X402PaymentRecordResponse(BaseModel):
+    tx_id: str
+    resource: str
+    service_name: str
+    amount_algo: float
+    timestamp: datetime
+    sender: str
+    status: str
+    block_number: Optional[int] = None
+
 
 class Observation(BaseModel):
     id: str
@@ -99,7 +159,9 @@ class X402ChallengeResponse(BaseModel):
     message: str = "Payment Required: Priority Satellite Analysis requires 0.2 ALGO micro-settlement via x402."
 
 class X402PaymentVerification(BaseModel):
-    resource: str
+    resource: Optional[str] = "/api/v1/premium"
     challenge_token: str
     transaction_id: str
     sender_wallet: str
+    service_name: Optional[str] = "Priority Sentinel-2 Compute"
+    amount_algo: Optional[float] = 0.25
