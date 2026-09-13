@@ -509,7 +509,7 @@ sequenceDiagram
 - [x] Interactive dual-layer before/after swipe comparison slider
 - [x] Human-in-the-loop review studio with field audit logs
 - [x] AlgoKit x402 Web3 micropayments on Algorand
-- [ ] **Sentinel-1 SAR Radar Integration**: Penetrate perpetual monsoon cloud cover using C-Band Synthetic Aperture Radar.
+- [x] **Sentinel-2 SAR Radar Integration**: Penetrate perpetual monsoon cloud cover using C-Band Synthetic Aperture Radar.
 - [ ] **Automated Drone Dispatch Webhooks**: Direct MAVLink / DroneKit trigger for automated aerial inspection of critical alerts.
 - [ ] **Decentralized Conservation DAO**: On-chain community staking for citizen-science ground validation.
 
