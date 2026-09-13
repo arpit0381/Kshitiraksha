@@ -14,8 +14,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ aois, events }) => {
   const pendingCount = events.filter(e => e.review_status === 'PENDING').length;
   
   const avgConfidence = events.length > 0
-    ? Math.round((events.reduce((acc, e) => acc + e.confidence.overall_detection_confidence, 0) / events.length) * 100)
-    : 92;
+    ? `${Math.round((events.reduce((acc, e) => acc + e.confidence.overall_detection_confidence, 0) / events.length) * 100)}%`
+    : '--';
 
   const metrics = [
     {
@@ -48,8 +48,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ aois, events }) => {
     },
     {
       label: 'Mean Detection Confidence',
-      value: `${avgConfidence}%`,
-      sub: '4-Factor composite scoring',
+      value: avgConfidence,
+      sub: events.length > 0 ? '4-Factor composite scoring' : 'No events detected yet',
       icon: <Activity size={20} style={{ color: 'var(--teal-500)' }} />,
       accent: 'teal'
     }

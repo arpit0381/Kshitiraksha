@@ -40,11 +40,11 @@ export const LandingPage: React.FC = () => {
         </p>
 
         <div className={styles.ctaGroup}>
-          <Link to="/app" className={styles.heroPrimaryCta}>
-            Launch Live Demo <ChevronRight size={20} />
+          <Link to="/login" className={styles.heroPrimaryCta}>
+            Access Platform Console <ChevronRight size={20} />
           </Link>
           <Link to="/register" className={styles.heroSecondaryCta}>
-            Request API Access
+            Register GIS Credentials
           </Link>
         </div>
 

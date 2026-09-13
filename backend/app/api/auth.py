@@ -22,6 +22,8 @@ def register(user_in: UserCreate, db: Session = Depends(deps.get_db)) -> Any:
         id=str(uuid.uuid4()),
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
+        full_name=user_in.full_name,
+        organization=user_in.organization,
     )
     db.add(user)
     db.commit()

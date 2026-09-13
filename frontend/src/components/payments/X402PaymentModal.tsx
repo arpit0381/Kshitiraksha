@@ -25,9 +25,12 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
   const [selectedService, setSelectedService] = useState<'PRIORITY_SCAN' | 'GEOTIFF_EXPORT' | 'HIGH_FREQ' | 'PDF_DOSSIER'>('PRIORITY_SCAN');
   const [challenge, setChallenge] = useState<X402Challenge | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [walletConnected, setWalletConnected] = useState<boolean>(true);
-  const [walletType, setWalletType] = useState<string>('Pera Wallet (Testnet)');
-  const [walletAddress, setWalletAddress] = useState<string>('ALGO7KSHITIRAKSHATESTNETUSER9823VAULT');
+  const [walletAddress, setWalletAddress] = useState<string>(() => localStorage.getItem('kshitiraksha_algo_wallet') || '');
+  const [walletConnected, setWalletConnected] = useState<boolean>(() => !!localStorage.getItem('kshitiraksha_algo_wallet'));
+  const [walletInput, setWalletInput] = useState<string>('');
+  const [showWalletInput, setShowWalletInput] = useState<boolean>(false);
+  const [walletError, setWalletError] = useState<string>('');
+  const [walletType, setWalletType] = useState<string>('Pera / Defly Wallet (Algorand)');
   const [isPaying, setIsPaying] = useState<boolean>(false);
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
   const [txHash, setTxHash] = useState<string>('');
@@ -74,6 +77,30 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
   const currentService = services.find(s => s.id === selectedService)!;
 
+  const handleConnectWallet = (addr: string) => {
+    const clean = addr.trim();
+    if (!clean) {
+      setWalletError('Please enter an Algorand address.');
+      return;
+    }
+    if (clean.length < 20) {
+      setWalletError('Please enter a valid Algorand account address.');
+      return;
+    }
+    setWalletAddress(clean);
+    setWalletConnected(true);
+    setWalletError('');
+    localStorage.setItem('kshitiraksha_algo_wallet', clean);
+    setShowWalletInput(false);
+  };
+
+  const handleDisconnectWallet = () => {
+    setWalletAddress('');
+    setWalletConnected(false);
+    setWalletInput('');
+    localStorage.removeItem('kshitiraksha_algo_wallet');
+  };
+
   const handleRequestChallenge = async () => {
     setIsLoading(true);
     setPaymentSuccess(false);
@@ -84,6 +111,12 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
   const handleSimulatePayment = async () => {
     if (!challenge) return;
+    if (!walletConnected || !walletAddress) {
+      setShowWalletInput(true);
+      setWalletError('Please connect or provide your Algorand wallet address to sign.');
+      return;
+    }
+
     setIsPaying(true);
 
     // Simulate Algorand Testnet block commitment
@@ -152,10 +185,73 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
           {/* Wallet State */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="badge badge-emerald font-mono" style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Wallet size={14} />
-              <span>{walletAddress.slice(0, 10)}...{walletAddress.slice(-6)}</span>
-            </div>
+            {walletConnected && walletAddress ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="badge badge-emerald font-mono" style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Wallet size={14} />
+                  <span>{walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDisconnectWallet}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 10px', fontSize: '11px' }}
+                  title="Disconnect Wallet"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : showWalletInput ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    type="text"
+                    placeholder="Algorand 58-char address..."
+                    value={walletInput}
+                    onChange={e => setWalletInput(e.target.value)}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-mono)',
+                      backgroundColor: 'var(--bg-canvas)',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      width: '240px'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleConnectWallet(walletInput)}
+                    className="btn btn-primary btn-sm"
+                    style={{ padding: '6px 10px', fontSize: '11px' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowWalletInput(false); setWalletError(''); }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: '6px 10px', fontSize: '11px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {walletError && (
+                  <span style={{ fontSize: '10px', color: '#f87171' }}>{walletError}</span>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowWalletInput(true)}
+                className="btn btn-amber btn-sm"
+                style={{ gap: '6px' }}
+              >
+                <Wallet size={14} />
+                <span>Connect Algorand Wallet</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

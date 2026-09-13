@@ -48,11 +48,15 @@ export const ApiService = {
     return data;
   },
 
-  async register(email: string, password: string): Promise<any> {
+  async register(email: string, password: string, fullName?: string, organization?: string): Promise<any> {
+    const payload: Record<string, any> = { email, password };
+    if (fullName) payload.full_name = fullName;
+    if (organization) payload.organization = organization;
+
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify(payload)
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Registration failed' }));

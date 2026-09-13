@@ -31,7 +31,7 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
   const [dispatchSuccess, setDispatchSuccess] = useState<boolean>(false);
 
   // Manual Dispatch Form State
-  const [dispatchRecipient, setDispatchRecipient] = useState<string>('dfo.korba@forest.gov.in');
+  const [dispatchRecipient, setDispatchRecipient] = useState<string>('');
   const [dispatchChannel, setDispatchChannel] = useState<'EMAIL' | 'SMS' | 'WEBHOOK'>('EMAIL');
   const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
 
@@ -273,6 +273,8 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
                     type="text"
                     value={dispatchRecipient}
                     onChange={e => setDispatchRecipient(e.target.value)}
+                    placeholder="e.g. officer@forest.gov.in or https://webhook..."
+                    required
                     style={{
                       padding: '8px 10px',
                       fontSize: '12px',

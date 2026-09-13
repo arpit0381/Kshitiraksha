@@ -11,9 +11,9 @@ from app.api.alerts import router as alerts_router
 from app.api.x402 import router as x402_router
 
 app = FastAPI(
-    title="Kshitiraksha - Satellite Change Detection & Alert System",
+    title=f"{settings.PROJECT_NAME} - Satellite Change Detection & Alert System",
     description="Intelligent Remote Sensing & GIS platform for automated satellite change detection, human verification, and AlgoKit x402 micropayments.",
-    version="1.0.0",
+    version=settings.VERSION,
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -58,9 +58,9 @@ app.include_router(x402_router, prefix="/api")
 @app.get("/")
 def root():
     return {
-        "system": "Kshitiraksha",
+        "system": settings.PROJECT_NAME,
         "status": "OPERATIONAL",
-        "version": "1.0.0",
+        "version": settings.VERSION,
         "sensor": "Sentinel-2 MSI (10m L2A)",
         "modules": [
             "AOI Management",

@@ -24,7 +24,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pendingAlertsCount }) => {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<{ email: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ email: string; full_name?: string; organization?: string } | null>(null);
   const [isBackendOnline, setIsBackendOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -211,18 +211,24 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, pending
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 8px',
+              padding: '4px 10px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--bg-elevated)',
               border: '1px solid var(--border-subtle)',
               fontSize: '11px',
               color: 'var(--text-secondary)'
             }}
+            title={currentUser.organization ? `${currentUser.full_name || currentUser.email} (${currentUser.organization})` : currentUser.email}
           >
             <User size={13} style={{ color: 'var(--emerald-500)' }} />
-            <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {currentUser.email.split('@')[0]}
+            <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+              {currentUser.full_name || currentUser.email.split('@')[0]}
             </span>
+            {currentUser.organization && (
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '6px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {currentUser.organization}
+              </span>
+            )}
           </div>
         )}
 

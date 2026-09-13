@@ -13,7 +13,8 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ events }) 
     { key: 'BARE_SOIL_EXPANSION', label: 'Bare Soil / Mining', color: 'var(--emerald-600)' }
   ];
 
-  const totalArea = events.reduce((acc, e) => acc + e.affected_area_hectares, 0) || 1;
+  const realTotalArea = events.reduce((acc, e) => acc + e.affected_area_hectares, 0);
+  const totalAreaForPct = realTotalArea > 0 ? realTotalArea : 1;
 
   return (
     <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
@@ -27,83 +28,91 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ events }) 
           </p>
         </div>
         <span className="badge badge-neutral font-mono">
-          Total: {totalArea.toFixed(1)} ha
+          Total: {realTotalArea.toFixed(1)} ha
         </span>
       </div>
 
-      {/* Stacked Proportional Bar */}
-      <div
-        style={{
-          display: 'flex',
-          height: '14px',
-          borderRadius: 'var(--radius-full)',
-          overflow: 'hidden',
-          backgroundColor: 'var(--bg-elevated)',
-          marginBottom: '16px',
-          border: '1px solid var(--border-subtle)'
-        }}
-      >
-        {categories.map(c => {
-          const catArea = events
-            .filter(e => e.category === c.key)
-            .reduce((acc, e) => acc + e.affected_area_hectares, 0);
-          const pct = (catArea / totalArea) * 100;
-          if (pct === 0) return null;
-          return (
-            <div
-              key={c.key}
-              style={{
-                width: `${pct}%`,
-                backgroundColor: c.color,
-                transition: 'width 300ms ease'
-              }}
-              title={`${c.label}: ${catArea.toFixed(1)} ha (${pct.toFixed(1)}%)`}
-            />
-          );
-        })}
-      </div>
+      {events.length === 0 ? (
+        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }}>
+          No disturbance events detected across monitored AOIs yet.
+        </div>
+      ) : (
+        <>
+          {/* Stacked Proportional Bar */}
+          <div
+            style={{
+              display: 'flex',
+              height: '14px',
+              borderRadius: 'var(--radius-full)',
+              overflow: 'hidden',
+              backgroundColor: 'var(--bg-elevated)',
+              marginBottom: '16px',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            {categories.map(c => {
+              const catArea = events
+                .filter(e => e.category === c.key)
+                .reduce((acc, e) => acc + e.affected_area_hectares, 0);
+              const pct = (catArea / totalAreaForPct) * 100;
+              if (pct === 0) return null;
+              return (
+                <div
+                  key={c.key}
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor: c.color,
+                    transition: 'width 300ms ease'
+                  }}
+                  title={`${c.label}: ${catArea.toFixed(1)} ha (${pct.toFixed(1)}%)`}
+                />
+              );
+            })}
+          </div>
 
-      {/* Legend Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-        {categories.map(c => {
-          const catEvents = events.filter(e => e.category === c.key);
-          const catArea = catEvents.reduce((acc, e) => acc + e.affected_area_hectares, 0);
-          const pct = ((catArea / totalArea) * 100).toFixed(1);
+          {/* Legend Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+            {categories.map(c => {
+              const catEvents = events.filter(e => e.category === c.key);
+              const catArea = catEvents.reduce((acc, e) => acc + e.affected_area_hectares, 0);
+              const pct = realTotalArea > 0 ? ((catArea / totalAreaForPct) * 100).toFixed(1) : '0.0';
 
-          return (
-            <div
-              key={c.key}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: c.color,
-                  flexShrink: 0
-                }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {c.label}
+              return (
+                <div
+                  key={c.key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      backgroundColor: c.color,
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.label}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
+                      {catArea.toFixed(1)} ha ({pct}%)
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
-                  {catArea.toFixed(1)} ha ({pct}%)
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 };

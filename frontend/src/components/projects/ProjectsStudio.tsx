@@ -27,7 +27,7 @@ export const ProjectsStudio: React.FC<ProjectsStudioProps> = ({ aois, onSelectAo
   // Form State
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [department, setDepartment] = useState<string>('National Remote Sensing Centre (NRSC / ISRO)');
+  const [department, setDepartment] = useState<string>('');
   const [frequency, setFrequency] = useState<'DAILY' | 'ORBITAL_5DAY' | 'WEEKLY' | 'MONTHLY'>('ORBITAL_5DAY');
   const [selectedAoiIds, setSelectedAoiIds] = useState<string[]>([]);
 
@@ -266,6 +266,8 @@ export const ProjectsStudio: React.FC<ProjectsStudioProps> = ({ aois, onSelectAo
                     type="text"
                     value={department}
                     onChange={e => setDepartment(e.target.value)}
+                    placeholder="e.g. State Forest Dept, NRSC, or CWC"
+                    required
                     style={{
                       padding: '8px 10px',
                       fontSize: '12px',
