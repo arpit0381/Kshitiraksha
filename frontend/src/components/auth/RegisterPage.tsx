@@ -66,7 +66,7 @@ export const RegisterPage: React.FC = () => {
         <div className={styles.brandHeader}>
           <Globe2 className={styles.logoIcon} size={44} />
           <h1 className={styles.title}>Join Kshitiraksha</h1>
-          <p className={styles.subtitle}>Register your official credentials to activate satellite change detection surveillance</p>
+          <p className={styles.subtitle}>Create your free account to start monitoring land changes from satellite</p>
         </div>
 
         {error && (
@@ -94,14 +94,14 @@ export const RegisterPage: React.FC = () => {
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.inputGroup}>
             <label className={styles.label} htmlFor="name">
-              Full Name & Rank
+              Full Name
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 id="name"
                 type="text"
                 className={styles.input}
-                placeholder="Dr. Rajesh Kumar / Officer In-Charge"
+                placeholder="Your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -123,14 +123,14 @@ export const RegisterPage: React.FC = () => {
 
           <div className={styles.inputGroup}>
             <label className={styles.label} htmlFor="organization">
-              Department / Authority / Institution
+              Organization (optional)
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 id="organization"
                 type="text"
                 className={styles.input}
-                placeholder="Forest Dept / Remote Sensing Wing / Municipal Corp"
+                placeholder="Your company or organization"
                 value={organization}
                 onChange={(e) => setOrganization(e.target.value)}
                 required
@@ -152,14 +152,14 @@ export const RegisterPage: React.FC = () => {
 
           <div className={styles.inputGroup}>
             <label className={styles.label} htmlFor="email">
-              Official Work Email
+              Email Address
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 id="email"
                 type="email"
                 className={styles.input}
-                placeholder="officer@agency.gov.in"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -290,7 +290,7 @@ export const RegisterPage: React.FC = () => {
             disabled={isSubmitting}
             style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
           >
-            <span>{isSubmitting ? 'Registering Account...' : 'Create Monitoring Account'}</span>
+            <span>{isSubmitting ? 'Creating account...' : 'Create Account'}</span>
             {!isSubmitting && <ArrowRight size={18} />}
           </button>
         </form>

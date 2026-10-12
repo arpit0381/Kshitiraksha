@@ -4,18 +4,20 @@ import { AOI, ChangeEvent, AnalysisRunParams, ReviewStatus } from './types';
 import { ApiService } from './services/api';
 import { Header } from './components/common/Header';
 import { MapWorkspace } from './components/map/MapWorkspace';
+import { MapLibreGlobeWorkspace } from './components/map/MapLibreGlobeWorkspace';
 import { SwipeComparison } from './components/comparison/SwipeComparison';
 import { EventReviewStudio } from './components/events/EventReviewStudio';
 import { ProjectsStudio } from './components/projects/ProjectsStudio';
 import { X402PaymentModal } from './components/payments/X402PaymentModal';
 import Loading from './components/landing/loading';
-import { Layers, Eye, ShieldCheck, Zap, X, ArrowLeft, RefreshCw, Activity } from 'lucide-react';
+import { Layers, Eye, ShieldCheck, Zap, X, ArrowLeft, MapPin, Globe } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentTab, setCurrentTab] = useState<string>('map');
   const [drawerTab, setDrawerTab] = useState<'sweep' | 'analytics' | 'incidents'>('sweep');
+  const [mapEngine, setMapEngine] = useState<'leaflet' | 'maplibre_globe'>('leaflet');
   const [activeModal, setActiveModal] = useState<'none' | 'swipe' | 'review' | 'x402'>('none');
   const [aois, setAois] = useState<AOI[]>([]);
   const [events, setEvents] = useState<ChangeEvent[]>([]);
@@ -159,18 +161,25 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-canvas)', overflow: 'hidden' }}>
-      {/* Top Google Maps Style Header */}
+      {/* Header Navigation */}
       <Header
         currentTab={currentTab === 'map' ? (drawerTab === 'analytics' ? 'dashboard' : drawerTab === 'incidents' ? 'alerts' : 'map') : currentTab}
         onTabChange={handleTabChange}
         pendingAlertsCount={pendingAlertsCount}
       />
 
-      {/* Main Unified Viewport */}
+      {/* Main Content */}
       <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {currentTab === 'projects' ? (
           <div style={{ height: '100%', overflowY: 'auto', backgroundColor: 'var(--bg-canvas)' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{
+              padding: '14px 24px',
+              borderBottom: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--bg-surface)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   onClick={() => {
@@ -181,13 +190,13 @@ export const Dashboard: React.FC = () => {
                   style={{ gap: '6px' }}
                 >
                   <ArrowLeft size={14} />
-                  <span>Return to Interactive Map</span>
+                  <span>Back to Map</span>
                 </button>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Monitored Conservation Projects
+                <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  My Monitored Areas
                 </span>
               </div>
-              <span className="badge badge-emerald font-mono">{aois.length} Active Reserves</span>
+              <span className="badge badge-emerald font-mono">{aois.length} Areas</span>
             </div>
 
             <ProjectsStudio
@@ -204,36 +213,80 @@ export const Dashboard: React.FC = () => {
             />
           </div>
         ) : (
-          /* Map-Centric Foundation (Always visible and living) */
+          /* Map View (Supports both Leaflet HD Satellite and MapLibre 3D Globe) */
           selectedAoi ? (
-            <MapWorkspace
-              aois={aois}
-              events={events}
-              selectedAoi={selectedAoi}
-              onSelectAoi={setSelectedAoi}
-              onRunAnalysis={handleRunAnalysis}
-              onOpenEventReview={handleSelectEventForReview}
-              onOpenSwipe={handleOpenSwipe}
-              onAoiCreated={handleAoiCreated}
-              activeDrawerTab={drawerTab}
-              onDrawerTabChange={setDrawerTab}
-            />
+            mapEngine === 'maplibre_globe' ? (
+              <MapLibreGlobeWorkspace
+                aois={aois}
+                events={events}
+                selectedAoi={selectedAoi}
+                onSelectAoi={setSelectedAoi}
+                onSwitchToLeaflet={() => setMapEngine('leaflet')}
+                onOpenEventReview={handleSelectEventForReview}
+                onOpenSwipe={handleOpenSwipe}
+              />
+            ) : (
+              <MapWorkspace
+                aois={aois}
+                events={events}
+                selectedAoi={selectedAoi}
+                onSelectAoi={setSelectedAoi}
+                onRunAnalysis={handleRunAnalysis}
+                onOpenEventReview={handleSelectEventForReview}
+                onOpenSwipe={handleOpenSwipe}
+                onAoiCreated={handleAoiCreated}
+                activeDrawerTab={drawerTab}
+                onDrawerTabChange={setDrawerTab}
+                onSwitchToGlobe={() => setMapEngine('maplibre_globe')}
+              />
+            )
           ) : (
-            <div style={{ padding: '48px 24px', maxWidth: '800px', margin: '40px auto', textAlign: 'center' }} className="card">
-              <Layers size={40} style={{ color: 'var(--emerald-500)', margin: '0 auto 16px auto' }} />
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                Loading Protected Surveillance Areas...
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Connecting to Sentinel-2 multi-spectral GIS catalog.
-              </p>
+            /* Welcome / Empty State */
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              padding: '24px'
+            }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '48px 40px',
+                maxWidth: '500px',
+                background: 'var(--bg-surface)',
+                borderRadius: '20px',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: '0 4px 20px rgba(60,64,67,0.1)'
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, rgba(26,115,232,0.1), rgba(30,142,62,0.1))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 20px'
+                }}>
+                  <MapPin size={28} style={{ color: 'var(--primary-500)' }} />
+                </div>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Welcome to Kshitiraksha!
+                </h2>
+                <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '4px' }}>
+                  Loading your monitored areas...
+                </p>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  If this is your first time, draw an area on the map or upload a GeoJSON file to start monitoring.
+                </p>
+              </div>
             </div>
           )
         )}
 
-        {/* Dual-Pass Satellite Comparison Inspector Modal */}
+        {/* ── Before & After Comparison Modal ── */}
         {activeModal === 'swipe' && selectedEvent && (
-          <div className="modal-overlay" style={{ padding: '16px' }}>
+          <div className="modal-overlay" style={{ padding: '12px' }}>
             <div
               className="modal-content"
               style={{
@@ -242,12 +295,12 @@ export const Dashboard: React.FC = () => {
                 height: '92vh',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: '16px',
                 overflow: 'hidden',
                 backgroundColor: 'var(--bg-surface)'
               }}
             >
-              {/* Modal Top Bar */}
+              {/* Modal Header */}
               <div
                 style={{
                   display: 'flex',
@@ -262,10 +315,10 @@ export const Dashboard: React.FC = () => {
                   <Eye size={18} style={{ color: 'var(--primary-500)' }} />
                   <div>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      Sentinel-2 Dual-Pass Optical Evidence Inspector
+                      Before & After Comparison
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                      • {selectedEvent.title} ({selectedEvent.affected_area_hectares.toFixed(1)} ha)
+                      • {selectedEvent.title} ({selectedEvent.affected_area_hectares.toFixed(1)} ha affected)
                     </span>
                   </div>
                 </div>
@@ -276,7 +329,7 @@ export const Dashboard: React.FC = () => {
                     style={{ gap: '6px' }}
                   >
                     <ShieldCheck size={14} />
-                    <span>Proceed to Verification</span>
+                    <span>Verify This Change</span>
                   </button>
                   <button
                     onClick={() => setActiveModal('none')}
@@ -284,7 +337,7 @@ export const Dashboard: React.FC = () => {
                     style={{ gap: '6px' }}
                   >
                     <X size={14} />
-                    <span>Close to Map</span>
+                    <span>Close</span>
                   </button>
                 </div>
               </div>
@@ -306,9 +359,9 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Ground Truth Verification Studio Modal */}
+        {/* ── Verification Studio Modal ── */}
         {activeModal === 'review' && selectedEvent && (
-          <div className="modal-overlay" style={{ padding: '16px' }}>
+          <div className="modal-overlay" style={{ padding: '12px' }}>
             <div
               className="modal-content"
               style={{
@@ -317,12 +370,12 @@ export const Dashboard: React.FC = () => {
                 height: '92vh',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: '16px',
                 overflow: 'hidden',
                 backgroundColor: 'var(--bg-surface)'
               }}
             >
-              {/* Modal Top Bar */}
+              {/* Modal Header */}
               <div
                 style={{
                   display: 'flex',
@@ -337,7 +390,7 @@ export const Dashboard: React.FC = () => {
                   <ShieldCheck size={18} style={{ color: 'var(--copper-500)' }} />
                   <div>
                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      Incident Verification & Ground Truth Dossier
+                      Verify Change
                     </span>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
                       • {selectedEvent.title}
@@ -351,7 +404,7 @@ export const Dashboard: React.FC = () => {
                     style={{ gap: '6px' }}
                   >
                     <Eye size={14} />
-                    <span>View Dual-Pass Swipe</span>
+                    <span>View Comparison</span>
                   </button>
                   <button
                     onClick={() => setActiveModal('none')}
@@ -359,7 +412,7 @@ export const Dashboard: React.FC = () => {
                     style={{ gap: '6px' }}
                   >
                     <X size={14} />
-                    <span>Close to Map</span>
+                    <span>Close</span>
                   </button>
                 </div>
               </div>
@@ -378,9 +431,9 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* AlgoKit x402 Micropayments Modal */}
+        {/* ── Blockchain Payments Modal ── */}
         {activeModal === 'x402' && (
-          <div className="modal-overlay" style={{ padding: '16px' }}>
+          <div className="modal-overlay" style={{ padding: '12px' }}>
             <div
               className="modal-content"
               style={{
@@ -389,7 +442,7 @@ export const Dashboard: React.FC = () => {
                 maxHeight: '88vh',
                 display: 'flex',
                 flexDirection: 'column',
-                borderRadius: 'var(--radius-lg)',
+                borderRadius: '16px',
                 overflow: 'hidden',
                 backgroundColor: 'var(--bg-surface)'
               }}
@@ -407,7 +460,7 @@ export const Dashboard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Zap size={18} style={{ color: 'var(--amber-500)' }} />
                   <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    AlgoKit x402 Micropayments & Verification Ledger
+                    Blockchain Payments (AlgoKit x402)
                   </span>
                 </div>
                 <button
@@ -430,7 +483,7 @@ export const Dashboard: React.FC = () => {
       {/* Footer Status Bar */}
       <footer
         style={{
-          padding: '8px 20px',
+          padding: '6px 20px',
           backgroundColor: 'var(--bg-surface)',
           borderTop: '1px solid var(--border-subtle)',
           fontSize: '11px',
@@ -438,20 +491,17 @@ export const Dashboard: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          flexWrap: 'wrap',
           gap: '12px',
           zIndex: 800
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span>Kshitiraksha • Google Earth Style Satellite GIS</span>
-          <span>Sensor: <b>Sentinel-2 MSI (10m L2A BOA)</b></span>
-          <span>Processing: <b>OpenCV Morphology & Multi-spectral Differencing</b></span>
+          <span>Kshitiraksha • Satellite Change Detection Platform</span>
+          <span>Sensor: <b>Sentinel-2 (10m resolution)</b></span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} className="font-mono">
-          <span>AlgoKit Protocol: <b>Online</b></span>
-          <span style={{ color: 'var(--emerald-500)' }}>● Live Backend Synced</span>
+          <span style={{ color: 'var(--emerald-500)' }}>● Connected</span>
         </div>
       </footer>
     </div>

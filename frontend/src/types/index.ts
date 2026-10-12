@@ -9,7 +9,7 @@ export type ChangeCategory =
 
 export type ReviewStatus = 'PENDING' | 'VERIFIED' | 'FALSE_POSITIVE' | 'NEEDS_REVIEW';
 
-export type SpectralBandMode = 'TRUE_COLOR' | 'FALSE_COLOR_IR' | 'NDVI_DELTA' | 'NDWI';
+export type SpectralBandMode = 'TRUE_COLOR' | 'FALSE_COLOR_IR' | 'NDVI_DELTA' | 'NDWI' | 'NASA_GIBS';
 
 export type ComparisonMode = 'SWIPE' | 'SIDE_BY_SIDE' | 'DIFFERENCE_MASK';
 

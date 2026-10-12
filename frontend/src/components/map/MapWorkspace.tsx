@@ -3,6 +3,8 @@ import L from 'leaflet';
 import { AOI, ChangeEvent, AnalysisRunParams, SatelliteObservation } from '../../types';
 import { CoordinateBar } from './CoordinateBar';
 import { ApiService } from '../../services/api';
+import { AreaSearchBar, SelectedLocation, INDIAN_HOTSPOTS } from './AreaSearchBar';
+import { AnalysisFlowModal } from './AnalysisFlowModal';
 import {
   Play,
   Sliders,
@@ -29,7 +31,9 @@ import {
   ShieldCheck,
   Activity,
   Filter,
-  CheckCircle
+  CheckCircle,
+  Columns,
+  Globe
 } from 'lucide-react';
 
 interface MapWorkspaceProps {
@@ -43,6 +47,7 @@ interface MapWorkspaceProps {
   onAoiCreated?: (newAoi: AOI) => void;
   activeDrawerTab?: 'sweep' | 'analytics' | 'incidents';
   onDrawerTabChange?: (tab: 'sweep' | 'analytics' | 'incidents') => void;
+  onSwitchToGlobe?: () => void;
 }
 
 export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
@@ -55,7 +60,8 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
   onOpenSwipe,
   onAoiCreated,
   activeDrawerTab,
-  onDrawerTabChange
+  onDrawerTabChange,
+  onSwitchToGlobe
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -63,10 +69,13 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
   const aoiLayerRef = useRef<L.Polygon | null>(null);
   const eventsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const drawLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const lastViewedAoiIdRef = useRef<string | null>(null);
 
   const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(selectedAoi?.zoom || 13);
-  const [basemap, setBasemap] = useState<string>('satellite');
+  const [basemap, setBasemap] = useState<string>('google-hybrid');
+  const [changeViewMode, setChangeViewMode] = useState<'OVERLAY' | 'BASELINE' | 'RECENT' | 'BLINK'>('OVERLAY');
+  const [blinkState, setBlinkState] = useState<boolean>(true);
 
   // Drawer & Panel Visibility
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -84,6 +93,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
   const [minAreaHa, setMinAreaHa] = useState<number>(1.0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisStep, setAnalysisStep] = useState<string>('');
+  const [showFlowModal, setShowFlowModal] = useState<boolean>(false);
 
   // Polygon Drawing Mode
   const [isDrawingAoi, setIsDrawingAoi] = useState<boolean>(false);
@@ -126,23 +136,35 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
 
   // Basemap URLs
   const basemapUrls: Record<string, { url: string; attribution: string }> = {
+    'google-hybrid': {
+      url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+      attribution: 'Google Maps India (Satellite & Roads)'
+    },
+    'google-sat': {
+      url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      attribution: 'Google Satellite Imagery'
+    },
     satellite: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       attribution: 'Esri, Maxar, Earthstar Geographics'
-    },
-    'carto-light': {
-      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
-    },
-    'carto-dark': {
-      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
     },
     osm: {
       url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       attribution: '&copy; OpenStreetMap contributors'
     }
   };
+
+  // Blink timer for real change visualization
+  useEffect(() => {
+    if (changeViewMode !== 'BLINK') {
+      setBlinkState(true);
+      return;
+    }
+    const timer = setInterval(() => {
+      setBlinkState(prev => !prev);
+    }, 650);
+    return () => clearInterval(timer);
+  }, [changeViewMode]);
 
   // Load observations when selected AOI changes
   useEffect(() => {
@@ -178,10 +200,13 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
     return Math.round((area / 10000) * 10) / 10;
   };
 
-  // Initialize Leaflet Map
+  // Initialize Leaflet Map locked to India bounds
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
+
+    // Generous India boundary to prevent edge bouncing while staying within subcontinent
+    const indiaBounds = L.latLngBounds([4.0, 65.0], [39.0, 100.0]);
 
     const initialCenter = selectedAoi?.center || [22.825, 82.685];
     const initialZoom = selectedAoi?.zoom || 13;
@@ -189,13 +214,15 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
     const map = L.map(mapContainerRef.current, {
       center: initialCenter,
       zoom: initialZoom,
+      minZoom: 3,
+      maxZoom: 20,
+      maxBounds: indiaBounds,
+      maxBoundsViscosity: 0.2,
       zoomControl: false
     });
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-    const { url, attribution } = basemapUrls[basemap];
-    const tileLayer = L.tileLayer(url, { attribution, maxZoom: 18 }).addTo(map);
+    const { url, attribution } = basemapUrls[basemap] || basemapUrls['google-hybrid'];
+    const tileLayer = L.tileLayer(url, { attribution, maxZoom: 20 }).addTo(map);
     tileLayerRef.current = tileLayer;
 
     const eventsGroup = L.layerGroup().addTo(map);
@@ -220,10 +247,19 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
     };
   }, []);
 
+  // Center/View map ONLY when user switches to a DIFFERENT AOI (never resets user's zoom while inspecting!)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !selectedAoi) return;
+    if (lastViewedAoiIdRef.current === selectedAoi.id) return;
+
+    lastViewedAoiIdRef.current = selectedAoi.id;
+    mapInstanceRef.current.setView(selectedAoi.center, selectedAoi.zoom || 13);
+  }, [selectedAoi?.id]);
+
   // Update Basemap
   useEffect(() => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
-    const { url, attribution } = basemapUrls[basemap];
+    const { url } = basemapUrls[basemap] || basemapUrls['google-hybrid'];
     tileLayerRef.current.setUrl(url);
   }, [basemap]);
 
@@ -273,12 +309,10 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
     }
   }, [drawnPoints]);
 
-  // Render AOI and Events on Map
+  // Render AOI and Events on Map (without resetting user's zoom/pan)
   useEffect(() => {
     if (!mapInstanceRef.current || !selectedAoi) return;
     const map = mapInstanceRef.current;
-
-    map.setView(selectedAoi.center, selectedAoi.zoom);
 
     if (aoiLayerRef.current) {
       map.removeLayer(aoiLayerRef.current);
@@ -314,29 +348,36 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
           const polys = evt.geojson_geometry.coordinates;
           polys.forEach((ring: any) => {
             const latLngs = (ring[0] || ring).map(([lng, lat]: [number, number]) => [lat, lng]);
-            const color = evt.category === 'WATER_EXPANSION' ? '#007b83' : '#e37426';
+            const isPristine = changeViewMode === 'BASELINE' || (changeViewMode === 'BLINK' && blinkState);
+            const isWater = evt.category === 'WATER_EXPANSION' || evt.category === 'WATER_SHRINKAGE';
+            const color = isPristine ? '#10b981' : (isWater ? '#06b6d4' : '#ef4444');
+            const fillColor = isPristine ? '#059669' : (isWater ? '#0284c7' : '#dc2626');
+            const fillOpacity = changeViewMode === 'RECENT' ? 0.08 : 0.65;
+            const weight = isPristine ? 2 : 3.5;
+            const dashArray = isPristine ? '3, 3' : '6, 6';
 
             const eventPoly = L.polygon(latLngs, {
               color: color,
-              weight: 2.5,
-              fillColor: color,
-              fillOpacity: 0.4
+              weight: weight,
+              fillColor: fillColor,
+              fillOpacity: fillOpacity,
+              dashArray: dashArray
             });
 
             eventPoly.bindPopup(`
-              <div style="font-family: var(--font-sans); min-width: 230px; padding: 4px;">
+              <div style="font-family: var(--font-sans); min-width: 240px; padding: 4px;">
                 <div style="font-weight: 700; font-size: 13px; color: ${color}; margin-bottom: 4px;">
                   ${evt.title}
                 </div>
                 <div style="font-size: 12px; color: #5f6368; margin-bottom: 8px;">
-                  ${evt.affected_area_hectares.toFixed(1)} ha • Conf: ${Math.round(evt.confidence.overall_detection_confidence * 100)}%
+                  Area: <b>${evt.affected_area_hectares.toFixed(1)} ha</b> • Conf: <b>${Math.round(evt.confidence.overall_detection_confidence * 100)}%</b>
                 </div>
                 <div style="display: flex; gap: 6px;">
                   <button id="btn-popup-swipe-${evt.id}" style="
-                    background: #1a73e8; color: #fff; border: none; padding: 6px 10px;
-                    font-size: 11px; border-radius: 16px; cursor: pointer; flex: 1; font-weight: 600;
+                    background: #1a73e8; color: #fff; border: none; padding: 6px 12px;
+                    font-size: 11px; border-radius: 16px; cursor: pointer; flex: 1; font-weight: 700;
                   ">
-                    🔍 Swipe
+                    🔍 Compare Before/After
                   </button>
                   <button id="btn-popup-review-${evt.id}" style="
                     background: #f1f3f4; color: #202124; border: 1px solid #dadce0; padding: 6px 10px;
@@ -364,35 +405,105 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
         }
       });
     }
-  }, [selectedAoi, events]);
+  }, [selectedAoi, events, changeViewMode, blinkState]);
 
-  // Execute Analysis
-  const handleExecute = async () => {
+  // Select or Create Searched Location
+  const handleLocationSelected = async (loc: SelectedLocation) => {
+    // 1. If it's an existing AOI id
+    if (loc.isExistingAoiId) {
+      const match = aois.find(a => a.id === loc.isExistingAoiId);
+      if (match) {
+        onSelectAoi(match);
+        mapInstanceRef.current?.flyTo(match.center, match.zoom || 13, { duration: 1.2 });
+        return;
+      }
+    }
+
+    // 2. If an AOI with this exact name already exists
+    const matchByName = aois.find(a => a.name.toLowerCase() === loc.name.toLowerCase());
+    if (matchByName) {
+      onSelectAoi(matchByName);
+      mapInstanceRef.current?.flyTo(matchByName.center, matchByName.zoom || 13, { duration: 1.2 });
+      return;
+    }
+
+    // 3. Otherwise create a new AOI around this center (~3km bounding box)
+    const dLat = 0.012;
+    const dLng = 0.015;
+    const [cLat, cLng] = loc.center;
+    const coords: [number, number][] = [
+      [cLng - dLng, cLat - dLat],
+      [cLng + dLng, cLat - dLat],
+      [cLng + dLng, cLat + dLat],
+      [cLng - dLng, cLat + dLat],
+      [cLng - dLng, cLat - dLat]
+    ];
+
+    try {
+      const newAoi = await ApiService.createAoi({
+        name: loc.name,
+        category: loc.category,
+        area_hectares: loc.area_hectares || 250.0,
+        center: loc.center,
+        zoom: loc.zoom || 13,
+        description: loc.description,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [coords]
+        }
+      });
+      if (onAoiCreated) onAoiCreated(newAoi);
+      onSelectAoi(newAoi);
+      mapInstanceRef.current?.flyTo(loc.center, loc.zoom || 13, { duration: 1.2 });
+    } catch (err) {
+      console.warn('Backend AOI creation fallback to client state:', err);
+      const fallbackAoi: AOI = {
+        id: `aoi-${Date.now()}`,
+        name: loc.name,
+        description: loc.description,
+        category: loc.category,
+        area_hectares: loc.area_hectares || 250.0,
+        center: loc.center,
+        zoom: loc.zoom || 13,
+        created_at: new Date().toISOString(),
+        active_alerts_count: 0,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [coords]
+        }
+      };
+      if (onAoiCreated) onAoiCreated(fallbackAoi);
+      onSelectAoi(fallbackAoi);
+      mapInstanceRef.current?.flyTo(loc.center, loc.zoom || 13, { duration: 1.2 });
+    }
+  };
+
+  // Execute Analysis with Visual Flow Modal
+  const handleExecute = () => {
     if (!selectedAoi) return;
+    setShowFlowModal(true);
+  };
+
+  const handleFlowComplete = async () => {
+    setShowFlowModal(false);
     setIsAnalyzing(true);
-    setAnalysisStep('Querying Sentinel-2 MSI catalogue & cloud masking...');
-
-    await new Promise(r => setTimeout(r, 600));
-    setAnalysisStep('Computing multi-spectral NDVI & NDWI rasters...');
-
-    await new Promise(r => setTimeout(r, 600));
-    setAnalysisStep('Running OpenCV morphology & contour extraction...');
-
-    await new Promise(r => setTimeout(r, 500));
-    setAnalysisStep('Scoring 4-factor confidence & vectorizing...');
-
-    await onRunAnalysis({
-      aoi_id: selectedAoi.id,
-      baseline_date: baselineDate,
-      recent_date: recentDate,
-      vegetation_loss_threshold: threshold,
-      min_area_hectares: minAreaHa,
-      cloud_mask_strictness: 0.25,
-      priority_level: 'STANDARD'
-    });
-
-    setIsAnalyzing(false);
-    setAnalysisStep('');
+    setAnalysisStep('Finalizing detection report and disturbance boundary...');
+    try {
+      await onRunAnalysis({
+        aoi_id: selectedAoi.id,
+        baseline_date: baselineDate,
+        recent_date: recentDate,
+        vegetation_loss_threshold: threshold,
+        min_area_hectares: minAreaHa,
+        cloud_mask_strictness: 0.25,
+        priority_level: 'STANDARD'
+      });
+    } catch (err) {
+      console.error('Error running change detection:', err);
+    } finally {
+      setIsAnalyzing(false);
+      setAnalysisStep('');
+    }
   };
 
   // Save Drawn AOI
@@ -497,6 +608,337 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
       {/* Full-bleed Leaflet Map */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
+      {/* Floating Top Center Command & Search Bar */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 850,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          width: '92%',
+          maxWidth: '840px',
+          pointerEvents: 'none'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            width: '100%',
+            pointerEvents: 'auto'
+          }}
+        >
+          {/* Universal Area Search */}
+          <div style={{ flex: 1 }}>
+            <AreaSearchBar
+              existingAois={aois}
+              selectedAoi={selectedAoi}
+              onSelectLocation={handleLocationSelected}
+            />
+          </div>
+
+          {/* Quick Guided Flow Action Badge */}
+          {selectedAoi && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                backgroundColor: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: '0 4px 18px rgba(0, 0, 0, 0.14)',
+                border: '1px solid var(--border-subtle)',
+                flexShrink: 0
+              }}
+            >
+              <button
+                onClick={handleExecute}
+                disabled={isAnalyzing || isDrawingAoi}
+                className="btn btn-primary btn-sm"
+                style={{ gap: '6px', fontWeight: 700 }}
+              >
+                <Play size={13} />
+                <span>Run Change Detection</span>
+              </button>
+
+              {aoiEvents.length > 0 && onOpenSwipe && (
+                <button
+                  onClick={() => onOpenSwipe(aoiEvents[0])}
+                  className="btn btn-secondary btn-sm"
+                  style={{ gap: '6px' }}
+                >
+                  <Eye size={13} />
+                  <span>Compare ({aoiEvents.length})</span>
+                </button>
+              )}
+
+              {onSwitchToGlobe && (
+                <button
+                  onClick={onSwitchToGlobe}
+                  className="btn btn-secondary btn-sm"
+                  style={{ gap: '6px', fontSize: '11px', fontWeight: 700 }}
+                  title="Switch to MapLibre GL 3D Globe WebGL view"
+                >
+                  <Globe size={13} style={{ color: '#0284c7' }} />
+                  <span>🌐 3D Globe</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Quick Hotspot Chips */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            overflowX: 'auto',
+            maxWidth: '100%',
+            padding: '2px 4px',
+            pointerEvents: 'auto'
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#ffffff', textShadow: '0 1px 3px rgba(0,0,0,0.85)', whiteSpace: 'nowrap' }}>
+            Hotspots:
+          </span>
+          {INDIAN_HOTSPOTS.map((hot, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleLocationSelected(hot)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 10px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '11px',
+                fontWeight: 600,
+                backgroundColor: selectedAoi?.name === hot.name ? 'var(--primary-500)' : 'rgba(255, 255, 255, 0.94)',
+                color: selectedAoi?.name === hot.name ? '#ffffff' : '#1f2937',
+                border: '1px solid rgba(0,0,0,0.1)',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 150ms'
+              }}
+            >
+              <MapPin size={11} style={{ color: selectedAoi?.name === hot.name ? '#ffffff' : 'var(--primary-500)' }} />
+              <span>{hot.name.split('&')[0].trim()}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Real Visible Change Switcher */}
+        {aoiEvents.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(15, 23, 42, 0.90)',
+              backdropFilter: 'blur(8px)',
+              padding: '4px 12px',
+              borderRadius: 'var(--radius-full)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 4px 18px rgba(0,0,0,0.35)',
+              pointerEvents: 'auto',
+              flexWrap: 'wrap'
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <AlertTriangle size={13} />
+              <span>Visible Change:</span>
+            </span>
+
+            <button
+              onClick={() => setChangeViewMode('OVERLAY')}
+              style={{
+                padding: '3px 9px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '11px',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: changeViewMode === 'OVERLAY' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff'
+              }}
+            >
+              🔴 Change Footprint
+            </button>
+
+            <button
+              onClick={() => setChangeViewMode('BASELINE')}
+              style={{
+                padding: '3px 9px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '11px',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: changeViewMode === 'BASELINE' ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff'
+              }}
+            >
+              🌲 Before (Pristine)
+            </button>
+
+            <button
+              onClick={() => setChangeViewMode('RECENT')}
+              style={{
+                padding: '3px 9px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '11px',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: changeViewMode === 'RECENT' ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff'
+              }}
+            >
+              🛰️ After (Current)
+            </button>
+
+            <button
+              onClick={() => setChangeViewMode('BLINK')}
+              style={{
+                padding: '3px 9px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '11px',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: changeViewMode === 'BLINK' ? '#f59e0b' : 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              ⚡ Flash/Blink Change
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Floating Zoom & India Center Controls */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          zIndex: 850,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px'
+        }}
+      >
+        <button
+          onClick={() => mapInstanceRef.current?.zoomIn()}
+          className="btn btn-secondary btn-sm"
+          style={{
+            width: '38px',
+            height: '38px',
+            padding: 0,
+            justifyContent: 'center',
+            fontSize: '18px',
+            fontWeight: 700,
+            borderRadius: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            backgroundColor: 'var(--bg-surface)'
+          }}
+          title="Zoom In"
+        >
+          +
+        </button>
+        <button
+          onClick={() => mapInstanceRef.current?.zoomOut()}
+          className="btn btn-secondary btn-sm"
+          style={{
+            width: '38px',
+            height: '38px',
+            padding: 0,
+            justifyContent: 'center',
+            fontSize: '18px',
+            fontWeight: 700,
+            borderRadius: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            backgroundColor: 'var(--bg-surface)'
+          }}
+          title="Zoom Out"
+        >
+          -
+        </button>
+        <button
+          onClick={() => {
+            if (selectedAoi && mapInstanceRef.current) {
+              mapInstanceRef.current.flyTo(selectedAoi.center, selectedAoi.zoom || 14, { duration: 1 });
+            }
+          }}
+          className="btn btn-secondary btn-sm"
+          style={{
+            width: '38px',
+            height: '38px',
+            padding: 0,
+            justifyContent: 'center',
+            borderRadius: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            backgroundColor: 'var(--bg-surface)',
+            fontSize: '15px'
+          }}
+          title="Center on Monitored Area"
+        >
+          🎯
+        </button>
+        <button
+          onClick={() => {
+            if (mapInstanceRef.current) {
+              mapInstanceRef.current.flyTo([22.5, 82.0], 5, { duration: 1.2 });
+            }
+          }}
+          className="btn btn-secondary btn-sm"
+          style={{
+            width: '38px',
+            height: '38px',
+            padding: 0,
+            justifyContent: 'center',
+            borderRadius: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            backgroundColor: 'var(--bg-surface)',
+            fontSize: '15px'
+          }}
+          title="Whole India View"
+        >
+          🇮🇳
+        </button>
+        {onSwitchToGlobe && (
+          <button
+            onClick={onSwitchToGlobe}
+            className="btn btn-secondary btn-sm"
+            style={{
+              width: '38px',
+              height: '38px',
+              padding: 0,
+              justifyContent: 'center',
+              borderRadius: '10px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              backgroundColor: 'var(--bg-surface)',
+              fontSize: '15px'
+            }}
+            title="Switch to MapLibre GL 3D Globe View"
+          >
+            🌐
+          </button>
+        )}
+      </div>
+
       {/* Floating Google Maps Style Left Control Drawer */}
       <div
         className="floating-panel"
@@ -523,10 +965,10 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <MapPin size={18} style={{ color: 'var(--primary-500)' }} />
               <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Satellite GIS Platform
+                Control Panel
               </h2>
             </div>
-            <span className="badge badge-emerald font-mono">{aois.length} AOIs Active</span>
+            <span className="badge badge-emerald font-mono">{aois.length} Areas</span>
           </div>
 
           {/* Quick AOI Selector Dropdown */}
@@ -565,7 +1007,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
               style={{ flex: 1, fontSize: '11px', padding: '6px 8px' }}
             >
               <Sliders size={13} />
-              <span>Surveillance</span>
+              <span>Monitor</span>
             </button>
             <button
               onClick={() => handleTabSwitch('analytics')}
@@ -581,7 +1023,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
               style={{ flex: 1, fontSize: '11px', padding: '6px 8px' }}
             >
               <AlertTriangle size={13} />
-              <span>Incidents ({events.length})</span>
+              <span>Changes ({events.length})</span>
             </button>
           </div>
         </div>
@@ -605,12 +1047,12 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                   </button>
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  {selectedAoi.description || 'Continuous Sentinel-2 MSI multi-spectral surface surveillance.'}
+                  {selectedAoi.description || 'This area is being monitored for environmental changes.'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
                   <span className="badge badge-neutral font-mono">Area: {selectedAoi.area_hectares.toFixed(1)} ha</span>
                   <span className="badge badge-amber font-mono">
-                    {aoiEvents.length > 0 ? `${aoiEvents.length} Anomalies` : 'Clean Pass'}
+                    {aoiEvents.length > 0 ? `${aoiEvents.length} Changes Found` : 'No Changes'}
                   </span>
                 </div>
               </div>
@@ -619,20 +1061,24 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             {/* Sentinel-2 Re-scan Parameters */}
             <div style={{ padding: '14px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
-                Sentinel-2 Detection Sweep
+                Run Change Detection
               </span>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)' }}>Baseline Pass:</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Date 1 (Left Map • Before):
+                  </label>
                   <input
                     type="date"
                     value={baselineDate}
                     onChange={e => setBaselineDate(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '4px 6px',
+                      padding: '5px 6px',
                       fontSize: '11px',
+                      fontWeight: 600,
                       borderRadius: 'var(--radius-xs)',
                       border: '1px solid var(--border-subtle)',
                       backgroundColor: 'var(--bg-surface)',
@@ -641,15 +1087,19 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)' }}>Recent Pass:</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                    Date 2 (Right Map • After):
+                  </label>
                   <input
                     type="date"
                     value={recentDate}
                     onChange={e => setRecentDate(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '4px 6px',
+                      padding: '5px 6px',
                       fontSize: '11px',
+                      fontWeight: 600,
                       borderRadius: 'var(--radius-xs)',
                       border: '1px solid var(--border-subtle)',
                       backgroundColor: 'var(--bg-surface)',
@@ -659,8 +1109,23 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                 </div>
               </div>
 
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                💡 <b>Date 1</b> ka map left side dikhega aur <b>Date 2</b> ka map right side dikhega, aur AI dono dates ke beech ke saare changes highlight karega.
+              </div>
+
+              {aoiEvents.length > 0 && onOpenSwipe && (
+                <button
+                  onClick={() => onOpenSwipe(aoiEvents[0])}
+                  className="btn btn-secondary btn-sm"
+                  style={{ width: '100%', gap: '6px', fontSize: '11px', fontWeight: 600 }}
+                >
+                  <Columns size={13} />
+                  <span>Dono Dates Ka Side-by-Side Map Dekhein ({aoiEvents.length} Badlav)</span>
+                </button>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>ΔNDVI Threshold Sensitivity:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Detection Sensitivity:</span>
                 <span className="font-mono" style={{ fontWeight: 700, color: 'var(--amber-500)' }}>{threshold.toFixed(2)}</span>
               </div>
               <input
@@ -682,12 +1147,12 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                 {isAnalyzing ? (
                   <>
                     <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    <span>Processing OpenCV Sweep...</span>
+                    <span>Analyzing satellite images...</span>
                   </>
                 ) : (
                   <>
                     <Play size={14} />
-                    <span>Run Detection Sweep</span>
+                    <span>Detect Changes Now</span>
                   </>
                 )}
               </button>
@@ -704,7 +1169,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                 style={{ width: '100%', fontSize: '11px', gap: '4px' }}
               >
                 <Edit3 size={13} />
-                <span>{isDrawingAoi ? 'Cancel Draw' : 'Draw Polygon'}</span>
+                <span>{isDrawingAoi ? 'Cancel' : 'Draw Area on Map'}</span>
               </button>
 
               <button
@@ -713,7 +1178,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                 style={{ width: '100%', fontSize: '11px', gap: '4px' }}
               >
                 <UploadCloud size={13} />
-                <span>Import GeoJSON</span>
+                <span>Upload File</span>
               </button>
             </div>
 
@@ -721,13 +1186,13 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Detected Disturbances ({aoiEvents.length})
+                  Changes Detected ({aoiEvents.length})
                 </span>
               </div>
 
               {aoiEvents.length === 0 ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)' }}>
-                  No active anomalies detected in this AOI. Run a sweep above to analyze.
+                  No changes detected yet. Click "Detect Changes Now" above to scan this area.
                 </div>
               ) : (
                 aoiEvents.map(evt => (
@@ -791,7 +1256,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
           <div style={{ padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="card" style={{ padding: '12px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Monitored Territory</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Total Area Monitored</span>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--emerald-600)', display: 'block', marginTop: '2px' }}>
                   {Math.round(totalMonitoredHectares).toLocaleString()} ha
                 </span>
@@ -799,23 +1264,23 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
               </div>
 
               <div className="card" style={{ padding: '12px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Protected AOIs</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Monitored Areas</span>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--primary-500)', display: 'block', marginTop: '2px' }}>
                   {aois.length} Regions
                 </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Sentinel-2 10m L2A</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Satellite monitored</span>
               </div>
 
               <div className="card" style={{ padding: '12px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Disturbance Area</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Changed Area</span>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--amber-500)', display: 'block', marginTop: '2px' }}>
                   {totalAffectedHectares.toFixed(1)} ha
                 </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{events.length} physical clusters</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{events.length} changes found</span>
               </div>
 
               <div className="card" style={{ padding: '12px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Verified Ground Truth</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>Verified Changes</span>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--teal-500)', display: 'block', marginTop: '2px' }}>
                   {verifiedCount} / {events.length}
                 </span>
@@ -828,19 +1293,19 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             <div className="card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Mean Composite Confidence
+                  Average Detection Accuracy
                 </span>
                 <span className="badge badge-teal font-mono">{avgConfidence}</span>
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
-                Calculated via 4-Factor Engine: Spectral Magnitude, Spatial Coherence, Temporal Persistence, and Cloud Mask Integrity.
+                How confident the AI is about the detected changes, based on image quality and analysis.
               </p>
             </div>
 
             {/* Disturbance Distribution Breakdown */}
             <div className="card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Disturbance Classification
+                Types of Changes
               </span>
               <div
                 style={{
@@ -862,19 +1327,19 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', marginTop: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>🌲 Vegetation Loss:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>🌲 Trees/Plants Lost:</span>
                   <span className="font-mono" style={{ fontWeight: 600 }}>
                     {events.filter(e => e.category === 'VEGETATION_LOSS').reduce((acc, e) => acc + e.affected_area_hectares, 0).toFixed(1)} ha
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>🌊 Water Expansion / Flood:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>🌊 Water Increased (Flood):</span>
                   <span className="font-mono" style={{ fontWeight: 600 }}>
                     {events.filter(e => e.category === 'WATER_EXPANSION').reduce((acc, e) => acc + e.affected_area_hectares, 0).toFixed(1)} ha
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>🏜️ Water Shrinkage:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>🏜️ Water Decreased:</span>
                   <span className="font-mono" style={{ fontWeight: 600 }}>
                     {events.filter(e => e.category === 'WATER_SHRINKAGE').reduce((acc, e) => acc + e.affected_area_hectares, 0).toFixed(1)} ha
                   </span>
@@ -884,10 +1349,10 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
 
             {/* Platform Specifications */}
             <div style={{ padding: '12px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Satellite Telemetry Specifications</div>
-              <div>Optical Sensor: <b>Sentinel-2 MSI (10m L2A BOA)</b></div>
-              <div>Spectral Bands: <b>B04 (Red), B08 (NIR), B03 (Green), B11 (SWIR)</b></div>
-              <div>Facilitator Engine: <b>AlgoKit x402 Micropayments Live</b></div>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Technical Details</div>
+              <div>Satellite: <b>Sentinel-2 (10m resolution)</b></div>
+              <div>Image Bands: <b>Red, Near-IR, Green, SWIR</b></div>
+              <div>Payments: <b>Algorand Blockchain (x402)</b></div>
             </div>
           </div>
         )}
@@ -912,7 +1377,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                 type="text"
                 value={incidentSearch}
                 onChange={e => setIncidentSearch(e.target.value)}
-                placeholder="Search events, AOI, title..."
+                placeholder="Search changes by name or area..."
                 style={{
                   border: 'none',
                   backgroundColor: 'transparent',
@@ -941,7 +1406,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                     fontWeight: incidentCategoryFilter === cat ? 700 : 500
                   }}
                 >
-                  {cat === 'ALL' ? 'All Types' : cat.replace('_', ' ')}
+                  {cat === 'ALL' ? 'All' : cat === 'VEGETATION_LOSS' ? 'Trees Lost' : cat === 'WATER_EXPANSION' ? 'Water Rise' : 'Water Drop'}
                 </button>
               ))}
             </div>
@@ -950,7 +1415,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {filteredEvents.length === 0 ? (
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                  No matching anomaly events found.
+                  No changes found matching your filters.
                 </div>
               ) : (
                 filteredEvents.map(evt => (
@@ -1008,7 +1473,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
                           style={{ flex: 1, fontSize: '10px', padding: '4px 8px' }}
                         >
                           <Eye size={11} />
-                          <span>Swipe Compare</span>
+                          <span>Compare</span>
                         </button>
                       )}
                       <button
@@ -1073,11 +1538,11 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Edit3 size={16} style={{ color: 'var(--primary-500)' }} />
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Drawing Custom Boundary
+              Drawing Your Area
             </span>
           </div>
           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
-            Click on map to place polygon points. Points placed: <b>{drawnPoints.length}</b>
+            Click on the map to mark boundary points. Points marked: <b>{drawnPoints.length}</b>
           </p>
 
           <input
@@ -1106,7 +1571,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
               className="btn btn-primary btn-sm"
               style={{ flex: 1 }}
             >
-              Save AOI
+              Save Area
             </button>
             <button
               onClick={() => {
@@ -1129,7 +1594,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <UploadCloud size={20} style={{ color: 'var(--primary-500)' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                  Import GeoJSON Boundary
+                  Upload Area Boundary
                 </h3>
               </div>
               <button
@@ -1141,7 +1606,7 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
             </div>
 
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Upload WGS84 GeoJSON / KML polygon coordinates to create a monitored surveillance boundary.
+              Upload a GeoJSON or JSON file that contains the boundary of the area you want to monitor.
             </p>
 
             <div
@@ -1213,6 +1678,13 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
           </span>
         </div>
       )}
+
+      {/* Visual Satellite Processing Pipeline Modal */}
+      <AnalysisFlowModal
+        isOpen={showFlowModal}
+        aoiName={selectedAoi?.name || 'Selected Area'}
+        onComplete={handleFlowComplete}
+      />
 
       {/* Bottom Coordinate Bar */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 800 }}>

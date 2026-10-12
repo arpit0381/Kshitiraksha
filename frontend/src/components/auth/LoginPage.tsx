@@ -64,7 +64,7 @@ export const LoginPage: React.FC = () => {
         <div className={styles.brandHeader}>
           <Globe2 className={styles.logoIcon} size={44} />
           <h1 className={styles.title}>Kshitiraksha</h1>
-          <p className={styles.subtitle}>Sign in with your verified credentials to access the satellite monitoring console</p>
+          <p className={styles.subtitle}>Sign in to your satellite monitoring dashboard</p>
         </div>
 
         {error && (
@@ -92,14 +92,14 @@ export const LoginPage: React.FC = () => {
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.inputGroup}>
             <label className={styles.label} htmlFor="email">
-              Official Email Address
+              Email Address
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 id="email"
                 type="email"
                 className={styles.input}
-                placeholder="officer@agency.gov.in"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -181,7 +181,7 @@ export const LoginPage: React.FC = () => {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 style={{ accentColor: 'var(--emerald-500)', cursor: 'pointer' }}
               />
-              <span>Remember official email</span>
+              <span>Remember me</span>
             </label>
           </div>
 
@@ -191,13 +191,13 @@ export const LoginPage: React.FC = () => {
             disabled={isSubmitting}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
           >
-            <span>{isSubmitting ? 'Authenticating...' : 'Sign In to Command Console'}</span>
+            <span>{isSubmitting ? 'Signing in...' : 'Sign In'}</span>
             {!isSubmitting && <ArrowRight size={18} />}
           </button>
         </form>
 
         <p className={styles.footerText}>
-          Don't have an account yet? <Link to="/register" className={styles.link}>Register officer account</Link>
+          Don't have an account? <Link to="/register" className={styles.link}>Create Account</Link>
         </p>
       </div>
     </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { ChangeEvent, ReviewStatus } from '../../types';
 import { ReportGeneratorModal } from '../reports/ReportGeneratorModal';
+import { SendAlertModal } from '../alerts/SendAlertModal';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -15,7 +16,9 @@ import {
   Printer,
   Send,
   Eye,
-  ChevronDown
+  ChevronDown,
+  Bell,
+  Layers
 } from 'lucide-react';
 
 interface EventMiniMapProps {
@@ -118,6 +121,7 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [showAlertModal, setShowAlertModal] = useState<boolean>(false);
 
   const handleStatusChange = async (status: ReviewStatus) => {
     setIsSaving(true);
@@ -158,6 +162,44 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
     const a = document.createElement('a');
     a.href = url;
     a.download = `${event.id}_change_polygon.geojson`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportShapefile = () => {
+    const shapefileBundle = {
+      type: 'FeatureCollection',
+      name: `${event.id}_esri_shapefile_data`,
+      crs: {
+        type: 'name',
+        properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' }
+      },
+      features: [
+        {
+          type: 'Feature',
+          geometry: event.geojson_geometry,
+          properties: {
+            EVENT_ID: event.id,
+            AOI_NAME: event.aoi_name,
+            CATEGORY: event.category,
+            AREA_HA: event.affected_area_hectares,
+            BASE_DATE: event.baseline_date,
+            REC_DATE: event.recent_date,
+            CONF_PCT: Math.round(event.confidence.overall_detection_confidence * 100),
+            STATUS: event.review_status,
+            SOURCE: 'Kshitiraksha Sentinel-2 MSI'
+          }
+        }
+      ]
+    };
+
+    const blob = new Blob([JSON.stringify(shapefileBundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${event.id}_qgis_shapefile.geojson`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -241,9 +283,19 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             <span>Swipe Studio</span>
           </button>
 
+          <button onClick={() => setShowAlertModal(true)} className="btn btn-copper btn-sm" style={{ gap: '6px' }}>
+            <Bell size={14} />
+            <span>Send Field Alert</span>
+          </button>
+
           <button onClick={() => setShowReportModal(true)} className="btn btn-amber btn-sm" style={{ gap: '6px' }}>
             <FileText size={14} />
             <span>Generate Dossier PDF</span>
+          </button>
+
+          <button onClick={handleExportShapefile} className="btn btn-secondary btn-sm" style={{ gap: '6px' }}>
+            <Layers size={14} />
+            <span>Export Shapefile</span>
           </button>
 
           <button onClick={handleExportGeoJson} className="btn btn-primary btn-sm" style={{ gap: '6px' }}>
@@ -499,6 +551,14 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
         <ReportGeneratorModal
           event={event}
           onClose={() => setShowReportModal(false)}
+        />
+      )}
+
+      {/* Field Dispatch Alert Modal */}
+      {showAlertModal && (
+        <SendAlertModal
+          event={event}
+          onClose={() => setShowAlertModal(false)}
         />
       )}
     </div>

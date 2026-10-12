@@ -77,10 +77,10 @@ export const CoordinateBar: React.FC<CoordinateBarProps> = ({
             cursor: 'pointer'
           }}
         >
+          <option value="google-hybrid">Google Hybrid (India HD Satellite & Places)</option>
+          <option value="google-sat">Google Satellite (Pure Aerial)</option>
           <option value="satellite">Esri World Imagery (Satellite)</option>
-          <option value="carto-dark">Carto Dark Matter (Vector Dark)</option>
-          <option value="carto-light">Carto Positron (Vector Light)</option>
-          <option value="osm">OpenStreetMap Standard</option>
+          <option value="osm">OpenStreetMap (India Road Network)</option>
         </select>
       </div>
     </div>
