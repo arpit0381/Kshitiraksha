@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
 import { ChangeEvent, ReviewStatus } from '../../types';
 import { ReportGeneratorModal } from '../reports/ReportGeneratorModal';
 import {
@@ -16,6 +17,87 @@ import {
   Eye,
   ChevronDown
 } from 'lucide-react';
+
+interface EventMiniMapProps {
+  geometry: any;
+  showOverlay?: boolean;
+  color?: string;
+  badge: React.ReactNode;
+}
+
+const EventMiniMap: React.FC<EventMiniMapProps> = ({ geometry, showOverlay = false, color = '#d97706', badge }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    const map = L.map(containerRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+      scrollWheelZoom: false,
+      dragging: true
+    });
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18
+    }).addTo(map);
+
+    try {
+      const geoLayer = L.geoJSON(geometry as any, {
+        style: {
+          color: showOverlay ? color : 'transparent',
+          weight: showOverlay ? 2.5 : 0,
+          fillColor: showOverlay ? color : 'transparent',
+          fillOpacity: showOverlay ? 0.35 : 0
+        }
+      }).addTo(map);
+
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+      } else {
+        map.setView([22.825, 82.685], 13);
+      }
+    } catch {
+      map.setView([22.825, 82.685], 13);
+    }
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [geometry, showOverlay, color]);
+
+  return (
+    <div style={{ height: '240px', width: '100%', position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          left: '10px',
+          backgroundColor: 'rgba(15, 18, 22, 0.85)',
+          padding: '4px 10px',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: '11px',
+          color: '#fff',
+          fontFamily: 'var(--font-mono)',
+          zIndex: 1000,
+          pointerEvents: 'none'
+        }}
+      >
+        {badge}
+      </div>
+    </div>
+  );
+};
 
 interface EventReviewStudioProps {
   event: ChangeEvent;
@@ -88,6 +170,10 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
     'Suspected illegal sand / gravel mining expansion.',
     'Urgent ground inspection recommended.'
   ];
+
+  const baselineIndexVal = event.category === 'WATER_EXPANSION' ? -0.38 : 0.72;
+  const recentIndexVal = baselineIndexVal + event.average_delta_index;
+  const indexLabel = event.category === 'WATER_EXPANSION' || event.category === 'WATER_SHRINKAGE' ? 'NDWI' : 'NDVI';
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -181,40 +267,13 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             </span>
           </div>
 
-          <div
-            style={{
-              height: '240px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)',
-              backgroundImage: 'radial-gradient(circle at 50% 50%, #1e3a1e 10%, #182c18 50%, #122012 90%)',
-              position: 'relative',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.6 }}>
-              <circle cx="50%" cy="50%" r="80" fill="#254425" />
-            </svg>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                left: '10px',
-                backgroundColor: 'rgba(15, 18, 22, 0.8)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '11px',
-                color: '#fff',
-                fontFamily: 'var(--font-mono)'
-              }}
-            >
-              Date: {event.baseline_date} • Cloud: 1.4%
-            </div>
-          </div>
+          <EventMiniMap
+            geometry={event.geojson_geometry}
+            showOverlay={false}
+            badge={<>Date: {event.baseline_date} • Clarity: {Math.round(event.confidence.image_quality_score * 100)}%</>}
+          />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Dense undisturbed canopy. Baseline NDVI index: <b>+0.74</b>
+            Baseline terrain reflectance. Baseline {indexLabel}: <b>{baselineIndexVal > 0 ? `+${baselineIndexVal.toFixed(2)}` : baselineIndexVal.toFixed(2)}</b>
           </div>
         </div>
 
@@ -230,40 +289,13 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             </span>
           </div>
 
-          <div
-            style={{
-              height: '240px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)',
-              backgroundImage: 'radial-gradient(circle at 50% 50%, #4a3b2c 10%, #263321 50%, #182216 90%)',
-              position: 'relative',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
-              <path d="M 120 70 Q 180 50 240 90 T 260 160 Q 210 200 150 180 T 110 130 Z" fill="#786149" />
-            </svg>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                left: '10px',
-                backgroundColor: 'rgba(15, 18, 22, 0.8)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '11px',
-                color: '#fff',
-                fontFamily: 'var(--font-mono)'
-              }}
-            >
-              Date: {event.recent_date} • Cloud: 2.1%
-            </div>
-          </div>
+          <EventMiniMap
+            geometry={event.geojson_geometry}
+            showOverlay={false}
+            badge={<>Date: {event.recent_date} • Persistence: {Math.round(event.confidence.persistence_score * 100)}%</>}
+          />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Exposed excavation terrain. Degraded NDVI index: <b>+0.21</b>
+            Recent optical sweep. Observed {indexLabel}: <b>{recentIndexVal > 0 ? `+${recentIndexVal.toFixed(2)}` : recentIndexVal.toFixed(2)}</b>
           </div>
         </div>
 
@@ -279,46 +311,14 @@ export const EventReviewStudio: React.FC<EventReviewStudioProps> = ({
             </span>
           </div>
 
-          <div
-            style={{
-              height: '240px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)',
-              backgroundColor: '#0c0f14',
-              position: 'relative',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
-              <path
-                d="M 120 70 Q 180 50 240 90 T 260 160 Q 210 200 150 180 T 110 130 Z"
-                fill="rgba(245, 158, 11, 0.25)"
-                stroke="var(--amber-500)"
-                strokeWidth="2.5"
-                strokeDasharray="6, 4"
-              />
-            </svg>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                left: '10px',
-                backgroundColor: 'rgba(15, 18, 22, 0.8)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '11px',
-                color: 'var(--amber-500)',
-                fontFamily: 'var(--font-mono)'
-              }}
-            >
-              ΔNDVI: {event.average_delta_index} • Contours: 1
-            </div>
-          </div>
+          <EventMiniMap
+            geometry={event.geojson_geometry}
+            showOverlay={true}
+            color={event.category === 'WATER_EXPANSION' ? '#0d9488' : '#d97706'}
+            badge={<>Δ{indexLabel}: {event.average_delta_index > 0 ? `+${event.average_delta_index.toFixed(2)}` : event.average_delta_index.toFixed(2)} • {event.affected_area_hectares.toFixed(1)} ha</>}
+          />
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Vectorized after OpenCV morphological closing and 15-pixel area filter.
+            Vectorized after OpenCV morphological contouring and minimum area threshold filter.
           </div>
         </div>
       </div>

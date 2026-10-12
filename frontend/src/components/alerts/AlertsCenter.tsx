@@ -31,7 +31,7 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
   const [dispatchSuccess, setDispatchSuccess] = useState<boolean>(false);
 
   // Manual Dispatch Form State
-  const [dispatchRecipient, setDispatchRecipient] = useState<string>('');
+  const [dispatchRecipient, setDispatchRecipient] = useState<string>('officer@isro.gov.in');
   const [dispatchChannel, setDispatchChannel] = useState<'EMAIL' | 'SMS' | 'WEBHOOK'>('EMAIL');
   const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
 
@@ -42,11 +42,27 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
   const [newRuleMinArea, setNewRuleMinArea] = useState<number>(2.0);
 
   useEffect(() => {
+    if (events.length > 0 && !selectedEventId) {
+      setSelectedEventId(events[0].id);
+    }
+  }, [events, selectedEventId]);
+
+  useEffect(() => {
+    if (aois.length > 0 && !newRuleAoi) {
+      setNewRuleAoi(aois[0].id);
+    }
+  }, [aois, newRuleAoi]);
+
+  useEffect(() => {
     const loadAlerts = async () => {
-      const fetchedAlerts = await ApiService.getAlertNotifications();
-      setAlerts(fetchedAlerts);
-      const fetchedRules = await ApiService.getAlertRules();
-      setRules(fetchedRules);
+      try {
+        const fetchedAlerts = await ApiService.getAlertNotifications();
+        setAlerts(fetchedAlerts);
+        const fetchedRules = await ApiService.getAlertRules();
+        setRules(fetchedRules);
+      } catch (e) {
+        console.error('Failed to load alerts or rules:', e);
+      }
     };
     loadAlerts();
   }, []);
@@ -57,37 +73,48 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
     if (!event) return;
 
     setIsDispatching(true);
-    const newAlert = await ApiService.dispatchAlert({
-      event_id: event.id,
-      event_title: event.title,
-      aoi_name: event.aoi_name,
-      category: event.category,
-      severity: event.affected_area_hectares > 30 ? 'CRITICAL' : 'HIGH',
-      channel: dispatchChannel,
-      recipient: dispatchRecipient,
-      affected_area_hectares: event.affected_area_hectares,
-      confidence_pct: Math.round(event.confidence.overall_detection_confidence * 100)
-    });
+    try {
+      const newAlert = await ApiService.dispatchAlert({
+        event_id: event.id,
+        event_title: event.title,
+        aoi_name: event.aoi_name,
+        category: event.category,
+        severity: event.affected_area_hectares > 30 ? 'CRITICAL' : 'HIGH',
+        channel: dispatchChannel,
+        recipient: dispatchRecipient || 'officer@isro.gov.in',
+        affected_area_hectares: event.affected_area_hectares,
+        confidence_pct: Math.round(event.confidence.overall_detection_confidence * 100)
+      });
 
-    setAlerts(prev => [newAlert, ...prev]);
-    setIsDispatching(false);
-    setDispatchSuccess(true);
-    setTimeout(() => setDispatchSuccess(false), 3000);
+      setAlerts(prev => [newAlert, ...prev]);
+      setDispatchSuccess(true);
+      setTimeout(() => setDispatchSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to dispatch alert:', err);
+    } finally {
+      setIsDispatching(false);
+    }
   };
 
   const handleCreateRule = async () => {
     const aoi = aois.find(a => a.id === newRuleAoi) || aois[0];
-    const rule = await ApiService.saveAlertRule({
-      aoi_id: aoi.id,
-      category: aoi.category || 'VEGETATION_LOSS',
-      delta_threshold: newRuleThreshold,
-      min_area_hectares: newRuleMinArea,
-      min_confidence: 0.85,
-      channels: ['DASHBOARD', 'EMAIL', 'WEBHOOK'],
-      enabled: true
-    });
-    setRules(prev => [rule, ...prev]);
-    setShowRuleModal(false);
+    if (!aoi) return;
+
+    try {
+      const rule = await ApiService.saveAlertRule({
+        aoi_id: aoi.id,
+        category: aoi.category || 'VEGETATION_LOSS',
+        delta_threshold: newRuleThreshold,
+        min_area_hectares: newRuleMinArea,
+        min_confidence: 0.85,
+        channels: ['DASHBOARD', 'EMAIL', 'WEBHOOK'],
+        enabled: true
+      });
+      setRules(prev => [rule, ...prev]);
+      setShowRuleModal(false);
+    } catch (err) {
+      console.error('Failed to save alert rule:', err);
+    }
   };
 
   const filteredAlerts = selectedSeverity === 'ALL'
@@ -153,7 +180,12 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '520px', overflowY: 'auto' }}>
-            {filteredAlerts.map(alt => (
+            {filteredAlerts.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                No alert notifications in stream. Dispatches are automatically generated when Sentinel-2 analysis passes exceed trigger thresholds.
+              </div>
+            ) : (
+              filteredAlerts.map(alt => (
               <div
                 key={alt.id}
                 style={{
@@ -203,7 +235,7 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
                   </span>
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
 
@@ -214,7 +246,7 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <Send size={16} style={{ color: 'var(--emerald-500)' }} />
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Simulate Emergency Dispatch
+                Operational Incident Dispatch
               </h3>
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
@@ -319,7 +351,12 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {rules.map(rule => {
+              {rules.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  No trigger rules configured. Click "Configure Trigger Rule" to establish statutory thresholds.
+                </div>
+              ) : (
+                rules.map(rule => {
                 const aoi = aois.find(a => a.id === rule.aoi_id);
                 return (
                   <div
@@ -347,7 +384,7 @@ export const AlertsCenter: React.FC<AlertsCenterProps> = ({ events, aois, onSele
                     </span>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>

@@ -43,12 +43,13 @@ export const ProjectsStudio: React.FC<ProjectsStudioProps> = ({ aois, onSelectAo
     e.preventDefault();
     if (!name) return;
 
+    const fallbackAoiIds = aois.length > 0 ? [aois[0].id] : [];
     const created = await ApiService.createProject({
       name,
       description,
       department,
       monitoring_frequency: frequency,
-      aoi_ids: selectedAoiIds.length > 0 ? selectedAoiIds : [aois[0].id]
+      aoi_ids: selectedAoiIds.length > 0 ? selectedAoiIds : fallbackAoiIds
     });
 
     setProjects(prev => [created, ...prev]);
@@ -100,7 +101,20 @@ export const ProjectsStudio: React.FC<ProjectsStudioProps> = ({ aois, onSelectAo
       </div>
 
       {/* Projects Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '20px' }}>
+      {projects.length === 0 ? (
+        <div className="card" style={{ padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <FolderKanban size={40} style={{ color: 'var(--text-muted)' }} />
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>No Monitoring Projects Found</h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '480px' }}>
+            Group your monitored Areas of Interest into jurisdictional projects to automate Sentinel-2 revisit surveillance.
+          </p>
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary" style={{ marginTop: '8px', gap: '6px' }}>
+            <PlusCircle size={15} />
+            <span>Create First Project</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '20px' }}>
         {projects.map(proj => {
           const projectAois = aois.filter(a => proj.aoi_ids?.includes(a.id) || a.project_id === proj.id);
           const totalAreaHa = projectAois.reduce((acc, a) => acc + a.area_hectares, 0);
@@ -190,7 +204,8 @@ export const ProjectsStudio: React.FC<ProjectsStudioProps> = ({ aois, onSelectAo
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Create Project Modal */}
       {showCreateModal && (

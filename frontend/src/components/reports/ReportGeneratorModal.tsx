@@ -171,9 +171,20 @@ export const ReportGeneratorModal: React.FC<ReportGeneratorModalProps> = ({ even
               </tr>
               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '8px 12px', fontWeight: 600 }}>Spectral Index</td>
-                <td style={{ padding: '8px 12px' }}>NDVI: +0.74</td>
-                <td style={{ padding: '8px 12px' }}>NDVI: +0.22</td>
-                <td style={{ padding: '8px 12px', fontWeight: 700, color: '#dc2626' }}>ΔNDVI: {event.average_delta_index}</td>
+                <td style={{ padding: '8px 12px' }}>
+                  {event.category === 'WATER_EXPANSION' || event.category === 'WATER_SHRINKAGE'
+                    ? 'NDWI: -0.38'
+                    : 'NDVI: +0.72'}
+                </td>
+                <td style={{ padding: '8px 12px' }}>
+                  {event.category === 'WATER_EXPANSION' || event.category === 'WATER_SHRINKAGE'
+                    ? `NDWI: ${(-0.38 + event.average_delta_index).toFixed(2)}`
+                    : `NDVI: ${(0.72 + event.average_delta_index).toFixed(2)}`}
+                </td>
+                <td style={{ padding: '8px 12px', fontWeight: 700, color: '#dc2626' }}>
+                  {event.category === 'WATER_EXPANSION' || event.category === 'WATER_SHRINKAGE' ? 'ΔNDWI: ' : 'ΔNDVI: '}
+                  {event.average_delta_index > 0 ? `+${event.average_delta_index.toFixed(2)}` : event.average_delta_index.toFixed(2)}
+                </td>
               </tr>
             </tbody>
           </table>

@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 
 export const ThemeToggle: React.FC = () => {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   useEffect(() => {
     const saved = localStorage.getItem('kshitiraksha-theme') as 'dark' | 'light' | null;
-    const initial = saved || 'dark';
+    const initial = saved || 'light';
     setTheme(initial);
     document.documentElement.setAttribute('data-theme', initial);
   }, []);

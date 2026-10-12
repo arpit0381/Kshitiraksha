@@ -13,7 +13,7 @@ import { AlertsCenter } from './components/alerts/AlertsCenter';
 import { ProjectsStudio } from './components/projects/ProjectsStudio';
 import { X402PaymentModal } from './components/payments/X402PaymentModal';
 import Loading from './components/landing/loading';
-import { Layers, Bell, Zap, Eye } from 'lucide-react';
+import { Layers, Bell, Zap, Eye, ShieldCheck } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -205,36 +205,81 @@ export const Dashboard: React.FC = () => {
           />
         )}
 
-        {currentTab === 'map' && selectedAoi && (
-          <MapWorkspace
-            aois={aois}
-            events={events}
-            selectedAoi={selectedAoi}
-            onSelectAoi={setSelectedAoi}
-            onRunAnalysis={handleRunAnalysis}
-            onOpenEventReview={handleSelectEventForReview}
-            onAoiCreated={handleAoiCreated}
-          />
+        {currentTab === 'map' && (
+          selectedAoi ? (
+            <MapWorkspace
+              aois={aois}
+              events={events}
+              selectedAoi={selectedAoi}
+              onSelectAoi={setSelectedAoi}
+              onRunAnalysis={handleRunAnalysis}
+              onOpenEventReview={handleSelectEventForReview}
+              onAoiCreated={handleAoiCreated}
+            />
+          ) : (
+            <div style={{ padding: '48px 24px', maxWidth: '800px', margin: '40px auto', textAlign: 'center' }} className="card">
+              <Layers size={40} style={{ color: 'var(--emerald-500)', margin: '0 auto 16px auto' }} />
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                No Monitored AOI Selected
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                Select an Area of Interest from your active projects or create a new AOI to explore live satellite observations.
+              </p>
+              <button onClick={() => setCurrentTab('projects')} className="btn btn-primary" style={{ margin: '0 auto' }}>
+                Go to Projects Studio
+              </button>
+            </div>
+          )
         )}
 
-        {currentTab === 'swipe' && selectedEvent && (
-          <SwipeComparison
-            event={selectedEvent}
-            events={events}
-            onSelectEvent={setSelectedEvent}
-            onBackToMap={() => setCurrentTab('map')}
-            onNavigateToReview={handleSelectEventForReview}
-          />
+        {currentTab === 'swipe' && (
+          selectedEvent ? (
+            <SwipeComparison
+              event={selectedEvent}
+              events={events}
+              onSelectEvent={setSelectedEvent}
+              onBackToMap={() => setCurrentTab('map')}
+              onNavigateToReview={handleSelectEventForReview}
+            />
+          ) : (
+            <div style={{ padding: '48px 24px', maxWidth: '800px', margin: '40px auto', textAlign: 'center' }} className="card">
+              <Eye size={40} style={{ color: 'var(--amber-500)', margin: '0 auto 16px auto' }} />
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                No Anomaly Events for Comparison
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                Execute a change detection analysis sweep in the Map Workspace to generate real evidence comparison data.
+              </p>
+              <button onClick={() => setCurrentTab('map')} className="btn btn-primary" style={{ margin: '0 auto' }}>
+                Open Map Workspace
+              </button>
+            </div>
+          )
         )}
 
-        {currentTab === 'review' && selectedEvent && (
-          <EventReviewStudio
-            event={selectedEvent}
-            events={events}
-            onSelectEvent={setSelectedEvent}
-            onUpdateStatus={handleUpdateStatus}
-            onOpenSwipe={handleOpenSwipe}
-          />
+        {currentTab === 'review' && (
+          selectedEvent ? (
+            <EventReviewStudio
+              event={selectedEvent}
+              events={events}
+              onSelectEvent={setSelectedEvent}
+              onUpdateStatus={handleUpdateStatus}
+              onOpenSwipe={handleOpenSwipe}
+            />
+          ) : (
+            <div style={{ padding: '48px 24px', maxWidth: '800px', margin: '40px auto', textAlign: 'center' }} className="card">
+              <ShieldCheck size={40} style={{ color: 'var(--copper-500)', margin: '0 auto 16px auto' }} />
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                No Events Awaiting Verification
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                All detected satellite disturbances have been cataloged. Run a new pass in the Map Workspace to detect fresh anomalies.
+              </p>
+              <button onClick={() => setCurrentTab('map')} className="btn btn-primary" style={{ margin: '0 auto' }}>
+                Run Detection Sweep
+              </button>
+            </div>
+          )
         )}
 
         {currentTab === 'alerts' && (

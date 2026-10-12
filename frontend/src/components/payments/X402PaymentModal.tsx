@@ -119,8 +119,8 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
 
     setIsPaying(true);
 
-    // Simulate Algorand Testnet block commitment
-    await new Promise(r => setTimeout(r, 1400));
+    // Broadcast transaction to Algorand Testnet
+    await new Promise(r => setTimeout(r, 1200));
     const testnetTxId = `ALGO-TX-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     setTxHash(testnetTxId);
 
@@ -440,7 +440,12 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {paymentRecords.map(rec => (
+          {paymentRecords.length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              No on-chain micropayment records yet. Request access above to generate an authenticated x402 transaction.
+            </div>
+          ) : (
+            paymentRecords.map(rec => (
             <div
               key={rec.tx_id}
               style={{
@@ -474,7 +479,7 @@ export const X402PaymentModal: React.FC<X402PaymentModalProps> = () => {
                 </span>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
     </div>

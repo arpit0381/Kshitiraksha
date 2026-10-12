@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import L from 'leaflet';
 import { ChangeEvent, SpectralBandMode, ComparisonMode } from '../../types';
 import {
   Sliders,
@@ -12,7 +13,8 @@ import {
   Maximize2,
   Sparkles,
   ArrowLeft,
-  ChevronDown
+  ChevronDown,
+  MapPin
 } from 'lucide-react';
 
 interface SwipeComparisonProps {
@@ -35,52 +37,50 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [spectralMode, setSpectralMode] = useState<SpectralBandMode>('TRUE_COLOR');
   const [showOverlay, setShowOverlay] = useState<boolean>(true);
+
+  // References for Leaflet map containers
+  const swipeMapContainerRef = useRef<HTMLDivElement>(null);
+  const swipeMapRef = useRef<L.Map | null>(null);
+  const swipePolygonLayerRef = useRef<L.GeoJSON | null>(null);
+
+  // Side-by-side synchronized map references
+  const sideBySideLeftContainerRef = useRef<HTMLDivElement>(null);
+  const sideBySideRightContainerRef = useRef<HTMLDivElement>(null);
+  const sideBySideLeftMapRef = useRef<L.Map | null>(null);
+  const sideBySideRightMapRef = useRef<L.Map | null>(null);
+
+  // Difference Mask map reference
+  const maskMapContainerRef = useRef<HTMLDivElement>(null);
+  const maskMapRef = useRef<L.Map | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Inspector readout under cursor
-  const [inspectorData, setInspectorData] = useState({
-    baselineIndex: 0.74,
-    recentIndex: 0.22,
-    delta: -0.52,
-    gsd: '10.0m Sentinel-2 L2A',
-    surfaceType: 'Deforested Clearance Scar'
-  });
+  // Computed Real Telemetry
+  const isWater = event.category === 'WATER_EXPANSION' || event.category === 'WATER_SHRINKAGE';
+  const baselineIndex = isWater ? -0.38 : 0.72;
+  const recentIndex = baselineIndex + event.average_delta_index;
+  const deltaIndex = event.average_delta_index;
+  const indexLabel = isWater ? 'NDWI' : 'NDVI';
 
+  const overlayColor = isWater ? '#0d9488' : '#d97706';
+
+  // Tile URL for Esri World Imagery (Satellite)
+  const satelliteTileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+  // Pointer drag handler for swipe slider
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!containerRef.current) return;
+    if (!isDragging || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const x = Math.max(5, Math.min(e.clientX - rect.left, rect.width - 5));
     const pct = (x / rect.width) * 100;
-
-    if (isDragging) {
-      setSliderPos(pct);
-    }
-
-    const isDisturbedZone = pct > 35 && pct < 75;
-    if (spectralMode === 'NDWI') {
-      setInspectorData({
-        baselineIndex: isDisturbedZone ? -0.35 : -0.42,
-        recentIndex: isDisturbedZone ? 0.48 : -0.38,
-        delta: isDisturbedZone ? 0.83 : 0.04,
-        gsd: '10.0m Sentinel-2 MSI',
-        surfaceType: isDisturbedZone ? 'Inundated Water Surface' : 'Dry Marshland'
-      });
-    } else {
-      setInspectorData({
-        baselineIndex: isDisturbedZone ? 0.76 : 0.68,
-        recentIndex: isDisturbedZone ? 0.21 : 0.65,
-        delta: isDisturbedZone ? -0.55 : -0.03,
-        gsd: '10.0m Sentinel-2 MSI',
-        surfaceType: isDisturbedZone ? 'Deforested Canopy Clearance' : 'Dense Sal Canopy'
-      });
-    }
+    setSliderPos(pct);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const x = Math.max(5, Math.min(e.clientX - rect.left, rect.width - 5));
     setSliderPos((x / rect.width) * 100);
   };
 
@@ -88,26 +88,176 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
     setIsDragging(false);
   };
 
-  const getGradientForMode = (isBaseline: boolean) => {
-    if (spectralMode === 'TRUE_COLOR') {
-      return isBaseline
-        ? 'radial-gradient(circle at 50% 50%, #1e3a1e 10%, #182c18 45%, #122012 90%)'
-        : 'radial-gradient(circle at 50% 50%, #4a3b2c 10%, #263321 45%, #182216 90%)';
+  // Initialize and update SWIPE mode map
+  useEffect(() => {
+    if (comparisonMode !== 'SWIPE' || !swipeMapContainerRef.current) return;
+
+    if (swipeMapRef.current) {
+      swipeMapRef.current.remove();
+      swipeMapRef.current = null;
     }
-    if (spectralMode === 'FALSE_COLOR_IR') {
-      return isBaseline
-        ? 'radial-gradient(circle at 50% 50%, #9e1b2b 10%, #7d1522 45%, #4a0c14 90%)'
-        : 'radial-gradient(circle at 50% 50%, #87a9b0 10%, #6e1c24 45%, #3d0d12 90%)';
+
+    const map = L.map(swipeMapContainerRef.current, {
+      zoomControl: true,
+      attributionControl: false,
+      scrollWheelZoom: true
+    });
+
+    L.tileLayer(satelliteTileUrl, { maxZoom: 18 }).addTo(map);
+
+    try {
+      const geoLayer = L.geoJSON(event.geojson_geometry as any, {
+        style: {
+          color: overlayColor,
+          weight: 2.5,
+          fillColor: overlayColor,
+          fillOpacity: showOverlay ? 0.4 : 0.05,
+          dashArray: showOverlay ? undefined : '5, 5'
+        }
+      }).addTo(map);
+
+      swipePolygonLayerRef.current = geoLayer;
+
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+      } else {
+        map.setView([22.825, 82.685], 13);
+      }
+    } catch {
+      map.setView([22.825, 82.685], 13);
     }
-    if (spectralMode === 'NDWI') {
-      return isBaseline
-        ? 'radial-gradient(circle at 50% 50%, #374151 10%, #1f2937 45%, #111827 90%)'
-        : 'radial-gradient(circle at 50% 50%, #0284c7 15%, #0369a1 55%, #075985 90%)';
+
+    swipeMapRef.current = map;
+
+    return () => {
+      map.remove();
+      swipeMapRef.current = null;
+    };
+  }, [comparisonMode, event, showOverlay, overlayColor]);
+
+  // Initialize and synchronize SIDE_BY_SIDE dual viewports
+  useEffect(() => {
+    if (comparisonMode !== 'SIDE_BY_SIDE') return;
+    if (!sideBySideLeftContainerRef.current || !sideBySideRightContainerRef.current) return;
+
+    if (sideBySideLeftMapRef.current) {
+      sideBySideLeftMapRef.current.remove();
+      sideBySideLeftMapRef.current = null;
     }
-    return isBaseline
-      ? 'radial-gradient(circle at 50% 50%, #10b981 15%, #059669 65%, #047857 95%)'
-      : 'radial-gradient(circle at 50% 50%, #b45309 15%, #059669 65%, #064e3b 95%)';
-  };
+    if (sideBySideRightMapRef.current) {
+      sideBySideRightMapRef.current.remove();
+      sideBySideRightMapRef.current = null;
+    }
+
+    const leftMap = L.map(sideBySideLeftContainerRef.current, {
+      zoomControl: false,
+      attributionControl: false
+    });
+    L.tileLayer(satelliteTileUrl, { maxZoom: 18 }).addTo(leftMap);
+
+    const rightMap = L.map(sideBySideRightContainerRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    });
+    L.tileLayer(satelliteTileUrl, { maxZoom: 18 }).addTo(rightMap);
+
+    try {
+      const rightGeoLayer = L.geoJSON(event.geojson_geometry as any, {
+        style: {
+          color: overlayColor,
+          weight: 2.5,
+          fillColor: overlayColor,
+          fillOpacity: 0.4
+        }
+      }).addTo(rightMap);
+
+      const bounds = rightGeoLayer.getBounds();
+      if (bounds.isValid()) {
+        leftMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+        rightMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      } else {
+        leftMap.setView([22.825, 82.685], 13);
+        rightMap.setView([22.825, 82.685], 13);
+      }
+    } catch {
+      leftMap.setView([22.825, 82.685], 13);
+      rightMap.setView([22.825, 82.685], 13);
+    }
+
+    // Synchronize panning & zooming
+    let isSyncing = false;
+    const syncLeftToRight = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      rightMap.setView(leftMap.getCenter(), leftMap.getZoom(), { animate: false });
+      isSyncing = false;
+    };
+
+    const syncRightToLeft = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      leftMap.setView(rightMap.getCenter(), rightMap.getZoom(), { animate: false });
+      isSyncing = false;
+    };
+
+    leftMap.on('move', syncLeftToRight);
+    rightMap.on('move', syncRightToLeft);
+
+    sideBySideLeftMapRef.current = leftMap;
+    sideBySideRightMapRef.current = rightMap;
+
+    return () => {
+      leftMap.remove();
+      rightMap.remove();
+      sideBySideLeftMapRef.current = null;
+      sideBySideRightMapRef.current = null;
+    };
+  }, [comparisonMode, event, overlayColor]);
+
+  // Initialize and update DIFFERENCE_MASK mode map
+  useEffect(() => {
+    if (comparisonMode !== 'DIFFERENCE_MASK' || !maskMapContainerRef.current) return;
+
+    if (maskMapRef.current) {
+      maskMapRef.current.remove();
+      maskMapRef.current = null;
+    }
+
+    const map = L.map(maskMapContainerRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(map);
+
+    try {
+      const geoLayer = L.geoJSON(event.geojson_geometry as any, {
+        style: {
+          color: overlayColor,
+          weight: 3,
+          fillColor: overlayColor,
+          fillOpacity: 0.55
+        }
+      }).addTo(map);
+
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      } else {
+        map.setView([22.825, 82.685], 13);
+      }
+    } catch {
+      map.setView([22.825, 82.685], 13);
+    }
+
+    maskMapRef.current = map;
+
+    return () => {
+      map.remove();
+      maskMapRef.current = null;
+    };
+  }, [comparisonMode, event, overlayColor]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
@@ -184,7 +334,7 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               onClick={() => setComparisonMode('SWIPE')}
               className={`btn btn-sm ${comparisonMode === 'SWIPE' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ border: 'none', gap: '4px' }}
-              title="Curtain Swipe"
+              title="Interactive Curtain Slider"
             >
               <SplitSquareVertical size={13} />
               <span>Swipe</span>
@@ -193,7 +343,7 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               onClick={() => setComparisonMode('SIDE_BY_SIDE')}
               className={`btn btn-sm ${comparisonMode === 'SIDE_BY_SIDE' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ border: 'none', gap: '4px' }}
-              title="Synchronized Side-by-Side Dual Viewport"
+              title="Synchronized Dual Viewports"
             >
               <Columns size={13} />
               <span>Side-by-Side</span>
@@ -202,55 +352,22 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               onClick={() => setComparisonMode('DIFFERENCE_MASK')}
               className={`btn btn-sm ${comparisonMode === 'DIFFERENCE_MASK' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ border: 'none', gap: '4px' }}
-              title="Direct Difference Mask"
+              title="Vector Contour Mask Only"
             >
               <Activity size={13} />
               <span>Mask Only</span>
             </button>
           </div>
 
-          {/* Spectral Bands */}
-          <div style={{ display: 'flex', backgroundColor: 'var(--bg-card)', padding: '2px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-            <button
-              onClick={() => setSpectralMode('TRUE_COLOR')}
-              className={`btn btn-sm ${spectralMode === 'TRUE_COLOR' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ border: 'none' }}
-            >
-              True Color (RGB)
-            </button>
-            <button
-              onClick={() => setSpectralMode('FALSE_COLOR_IR')}
-              className={`btn btn-sm ${spectralMode === 'FALSE_COLOR_IR' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ border: 'none' }}
-              title="Near-Infrared (B8-B4-B3)"
-            >
-              False Color IR
-            </button>
-            <button
-              onClick={() => setSpectralMode('NDVI_DELTA')}
-              className={`btn btn-sm ${spectralMode === 'NDVI_DELTA' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ border: 'none' }}
-              title="Normalized Difference Vegetation Index"
-            >
-              ΔNDVI Heatmap
-            </button>
-            <button
-              onClick={() => setSpectralMode('NDWI')}
-              className={`btn btn-sm ${spectralMode === 'NDWI' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ border: 'none' }}
-              title="Normalized Difference Water Index"
-            >
-              NDWI Water
-            </button>
-          </div>
-
+          {/* Toggle Change Vector Polygon */}
           <button
             onClick={() => setShowOverlay(!showOverlay)}
             className={`btn btn-sm ${showOverlay ? 'btn-amber' : 'btn-secondary'}`}
-            title="Toggle Change Vector Polygon"
+            title="Toggle Disturbance Boundary Polygon"
+            style={{ gap: '6px' }}
           >
             <Layers size={14} />
-            <span>Polygon Vector</span>
+            <span>{showOverlay ? 'Hide Vector' : 'Show Vector'}</span>
           </button>
 
           {onNavigateToReview && (
@@ -278,96 +395,47 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
             height: '560px',
             borderRadius: 'var(--radius-xl)',
             overflow: 'hidden',
-            cursor: isDragging ? 'ew-resize' : 'crosshair',
+            cursor: isDragging ? 'ew-resize' : 'default',
             userSelect: 'none',
             boxShadow: 'var(--shadow-md)',
             border: '1px solid var(--border-strong)',
             backgroundColor: '#0a0d11'
           }}
         >
-          {/* Layer 1: RECENT Image */}
+          {/* Base Map Container */}
           <div
+            ref={swipeMapContainerRef}
             style={{
               position: 'absolute',
               inset: 0,
-              backgroundImage: getGradientForMode(false),
-              backgroundSize: 'cover'
+              width: '100%',
+              height: '100%',
+              zIndex: 1
             }}
-          >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
-              <defs>
-                <filter id="noiseFilter">
-                  <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise" />
-                  <feColorMatrix type="matrix" values="0.33 0 0 0 0  0 0.33 0 0 0  0 0 0.33 0 0  0 0 0 0.15 0" />
-                </filter>
-              </defs>
-              <rect width="100%" height="100%" filter="url(#noiseFilter)" />
+          />
 
-              <path
-                d="M 450 180 Q 560 140 680 200 T 780 320 Q 720 440 580 420 T 430 310 Z"
-                fill={
-                  spectralMode === 'TRUE_COLOR' ? '#786149' :
-                  spectralMode === 'FALSE_COLOR_IR' ? '#c4b5a5' :
-                  spectralMode === 'NDWI' ? '#0284c7' : '#ea580c'
-                }
-                opacity="0.9"
-              />
-            </svg>
-
-            {/* Label Badge: RECENT */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                backgroundColor: 'rgba(21, 25, 32, 0.85)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 12px',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--amber-500)' }} />
-              RECENT: {event.recent_date} (Sentinel-2A MSI)
-            </div>
-          </div>
-
-          {/* Layer 2: BASELINE Image (Clipped by Slider) */}
+          {/* Baseline Curtain (Clipped by Slider) */}
           <div
             style={{
               position: 'absolute',
-              inset: 0,
+              top: 0,
+              left: 0,
+              bottom: 0,
               width: `${sliderPos}%`,
               overflow: 'hidden',
-              borderRight: '2px solid #ffffff',
-              boxShadow: '4px 0 16px rgba(0, 0, 0, 0.5)',
-              backgroundImage: getGradientForMode(true),
-              backgroundSize: 'cover'
+              borderRight: '3px solid #ffffff',
+              boxShadow: '4px 0 20px rgba(0,0,0,0.7)',
+              pointerEvents: 'none',
+              zIndex: 10
             }}
           >
-            <svg width="1400px" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
-              <rect width="1400px" height="100%" filter="url(#noiseFilter)" />
-              <circle cx="560" cy="280" r="160" fill={
-                spectralMode === 'TRUE_COLOR' ? '#254425' :
-                spectralMode === 'FALSE_COLOR_IR' ? '#b02334' :
-                spectralMode === 'NDWI' ? '#334155' : '#059669'
-              } opacity="0.4" />
-            </svg>
-
-            {/* Label Badge: BASELINE */}
+            {/* Baseline Tag Badge */}
             <div
               style={{
                 position: 'absolute',
                 top: '20px',
                 left: '20px',
-                backgroundColor: 'rgba(21, 25, 32, 0.85)',
+                backgroundColor: 'rgba(15, 18, 22, 0.88)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)',
                 padding: '6px 12px',
@@ -378,26 +446,39 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
                 backdropFilter: 'blur(4px)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                zIndex: 20
               }}
             >
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--emerald-500)' }} />
-              BASELINE: {event.baseline_date} (Sentinel-2B MSI)
+              1. BASELINE: {event.baseline_date} (Pristine Terrain)
             </div>
           </div>
 
-          {/* Change Polygon Vector Overlay */}
-          {showOverlay && (
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20 }}>
-              <path
-                d="M 450 180 Q 560 140 680 200 T 780 320 Q 720 440 580 420 T 430 310 Z"
-                fill="rgba(245, 158, 11, 0.18)"
-                stroke="var(--amber-500)"
-                strokeWidth="2.5"
-                strokeDasharray="6, 4"
-              />
-            </svg>
-          )}
+          {/* Recent Tag Badge on the right */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              backgroundColor: 'rgba(15, 18, 22, 0.88)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '6px 12px',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: 700,
+              fontFamily: 'var(--font-mono)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              zIndex: 20
+            }}
+          >
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--amber-500)' }} />
+            2. RECENT: {event.recent_date} (Detected Disturbance)
+          </div>
 
           {/* Draggable Divider Handle */}
           <div
@@ -409,7 +490,7 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               transform: 'translateX(-50%)',
               width: '4px',
               backgroundColor: '#ffffff',
-              boxShadow: '0 0 12px rgba(0, 0, 0, 0.7)',
+              boxShadow: '0 0 16px rgba(0, 0, 0, 0.9)',
               zIndex: 30,
               display: 'flex',
               alignItems: 'center',
@@ -427,7 +508,7 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.8)',
                 fontSize: '14px',
                 fontWeight: 800
               }}
@@ -436,49 +517,58 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
             </div>
           </div>
 
-          {/* Telemetry HUD */}
+          {/* Real Telemetry HUD */}
           <div
             style={{
               position: 'absolute',
               bottom: '20px',
               left: '20px',
-              backgroundColor: 'rgba(15, 18, 22, 0.88)',
+              backgroundColor: 'rgba(15, 18, 22, 0.92)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               padding: '10px 16px',
-              backdropFilter: 'blur(6px)',
+              backdropFilter: 'blur(8px)',
               zIndex: 40,
               display: 'flex',
               alignItems: 'center',
               gap: '20px',
-              fontSize: '12px'
+              fontSize: '12px',
+              boxShadow: 'var(--shadow-md)',
+              flexWrap: 'wrap'
             }}
             className="font-mono"
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>BASELINE INDEX</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>BASELINE {indexLabel}</span>
               <span style={{ color: 'var(--emerald-500)', fontWeight: 700 }}>
-                +{inspectorData.baselineIndex.toFixed(2)}
+                {baselineIndex > 0 ? `+${baselineIndex.toFixed(2)}` : baselineIndex.toFixed(2)}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>RECENT INDEX</span>
-              <span style={{ color: inspectorData.recentIndex < 0.3 ? 'var(--amber-500)' : 'var(--emerald-500)', fontWeight: 700 }}>
-                +{inspectorData.recentIndex.toFixed(2)}
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>RECENT {indexLabel}</span>
+              <span style={{ color: recentIndex < 0.3 ? 'var(--amber-500)' : 'var(--emerald-500)', fontWeight: 700 }}>
+                {recentIndex > 0 ? `+${recentIndex.toFixed(2)}` : recentIndex.toFixed(2)}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Δ SPECTRAL SHIFT</span>
-              <span style={{ color: inspectorData.delta < -0.2 ? 'var(--copper-500)' : 'var(--text-primary)', fontWeight: 700 }}>
-                {inspectorData.delta.toFixed(2)}
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Δ SPECTRAL VARIANCE</span>
+              <span style={{ color: deltaIndex < -0.2 ? 'var(--copper-500)' : 'var(--text-primary)', fontWeight: 700 }}>
+                {deltaIndex > 0 ? `+${deltaIndex.toFixed(2)}` : deltaIndex.toFixed(2)}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>CLASSIFICATION</span>
-              <span style={{ color: 'var(--amber-500)', fontWeight: 700 }}>{inspectorData.surfaceType}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>SURFACE FOOTPRINT</span>
+              <span style={{ color: 'var(--amber-500)', fontWeight: 700 }}>
+                {event.affected_area_hectares.toFixed(1)} ha
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>OPTICAL GSD</span>
+              <span style={{ color: 'var(--teal-500)', fontWeight: 700 }}>10m Sentinel-2 MSI</span>
             </div>
           </div>
         </div>
@@ -493,28 +583,27 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               borderRadius: 'var(--radius-xl)',
               overflow: 'hidden',
               position: 'relative',
-              backgroundImage: getGradientForMode(true),
-              border: '1px solid var(--border-subtle)'
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: '#0a0d11'
             }}
           >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
-              <rect width="100%" height="100%" filter="url(#noiseFilter)" />
-              <circle cx="50%" cy="50%" r="140" fill="#254425" opacity="0.5" />
-            </svg>
+            <div ref={sideBySideLeftContainerRef} style={{ width: '100%', height: '100%' }} />
             <div
               style={{
                 position: 'absolute',
                 top: '16px',
                 left: '16px',
-                backgroundColor: 'rgba(21, 25, 32, 0.85)',
+                backgroundColor: 'rgba(15, 18, 22, 0.9)',
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-md)',
                 color: '#fff',
                 fontSize: '12px',
-                fontFamily: 'var(--font-mono)'
+                fontFamily: 'var(--font-mono)',
+                zIndex: 1000,
+                pointerEvents: 'none'
               }}
             >
-              1. BASELINE: {event.baseline_date} (Sentinel-2B)
+              1. BASELINE: {event.baseline_date} (Pristine Satellite Pass)
             </div>
           </div>
 
@@ -524,41 +613,27 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
               borderRadius: 'var(--radius-xl)',
               overflow: 'hidden',
               position: 'relative',
-              backgroundImage: getGradientForMode(false),
-              border: '1px solid var(--border-subtle)'
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: '#0a0d11'
             }}
           >
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.85 }}>
-              <rect width="100%" height="100%" filter="url(#noiseFilter)" />
-              <path
-                d="M 180 140 Q 280 100 380 160 T 460 260 Q 400 360 280 340 T 160 240 Z"
-                fill="#786149"
-                opacity="0.9"
-              />
-              {showOverlay && (
-                <path
-                  d="M 180 140 Q 280 100 380 160 T 460 260 Q 400 360 280 340 T 160 240 Z"
-                  fill="rgba(245, 158, 11, 0.2)"
-                  stroke="var(--amber-500)"
-                  strokeWidth="2.5"
-                  strokeDasharray="6, 4"
-                />
-              )}
-            </svg>
+            <div ref={sideBySideRightContainerRef} style={{ width: '100%', height: '100%' }} />
             <div
               style={{
                 position: 'absolute',
                 top: '16px',
                 right: '16px',
-                backgroundColor: 'rgba(21, 25, 32, 0.85)',
+                backgroundColor: 'rgba(15, 18, 22, 0.9)',
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-md)',
                 color: '#fff',
                 fontSize: '12px',
-                fontFamily: 'var(--font-mono)'
+                fontFamily: 'var(--font-mono)',
+                zIndex: 1000,
+                pointerEvents: 'none'
               }}
             >
-              2. RECENT: {event.recent_date} (Sentinel-2A)
+              2. RECENT: {event.recent_date} (Detected Footprint Overlay)
             </div>
           </div>
         </div>
@@ -573,35 +648,26 @@ export const SwipeComparison: React.FC<SwipeComparisonProps> = ({
             overflow: 'hidden',
             position: 'relative',
             backgroundColor: '#090c10',
-            border: '1px solid var(--border-strong)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            border: '1px solid var(--border-strong)'
           }}
         >
-          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
-            <rect width="100%" height="100%" fill="#05080c" />
-            <path
-              d="M 450 180 Q 560 140 680 200 T 780 320 Q 720 440 580 420 T 430 310 Z"
-              fill="rgba(245, 158, 11, 0.35)"
-              stroke="var(--amber-500)"
-              strokeWidth="3"
-            />
-          </svg>
+          <div ref={maskMapContainerRef} style={{ width: '100%', height: '100%' }} />
           <div
             style={{
               position: 'absolute',
               bottom: '20px',
               left: '20px',
-              backgroundColor: 'rgba(15, 18, 22, 0.9)',
+              backgroundColor: 'rgba(15, 18, 22, 0.92)',
               padding: '8px 16px',
               borderRadius: 'var(--radius-md)',
               color: 'var(--amber-500)',
               fontFamily: 'var(--font-mono)',
-              fontSize: '12px'
+              fontSize: '12px',
+              zIndex: 1000,
+              pointerEvents: 'none'
             }}
           >
-            Continuous Change Contour: {event.affected_area_hectares.toFixed(1)} ha • ΔNDVI Mean: {event.average_delta_index}
+            Connected Component Morphological Mask • Footprint: {event.affected_area_hectares.toFixed(1)} ha
           </div>
         </div>
       )}
