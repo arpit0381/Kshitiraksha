@@ -152,8 +152,8 @@ export const MapWorkspace: React.FC<MapWorkspaceProps> = ({
         const obs = await ApiService.getObservations(selectedAoi.id);
         setObservations(obs);
         if (obs && obs.length >= 2) {
-          setRecentDate(obs[0].acquisition_date);
-          setBaselineDate(obs[obs.length - 1].acquisition_date);
+          setRecentDate(obs[0].date || (obs[0] as any).acquisition_date || '2026-02-10');
+          setBaselineDate(obs[obs.length - 1].date || (obs[obs.length - 1] as any).acquisition_date || '2025-01-15');
         }
       } catch (e) {
         console.error('Failed to load observations:', e);
